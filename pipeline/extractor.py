@@ -2,11 +2,11 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
-import warnings
 from pathlib import Path
 
 from PIL import Image
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 from docx import Document
 
 from config import Config
@@ -42,7 +42,7 @@ def _extract_pptx(file_path: Path, config: Config) -> list[ImageRecord]:
     records: list[ImageRecord] = []
     for slide_idx, slide in enumerate(prs.slides, start=1):
         for shape_idx, shape in enumerate(slide.shapes, start=1):
-            if not shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
+            if shape.shape_type != MSO_SHAPE_TYPE.PICTURE:
                 continue
             try:
                 raw = shape.image.blob
@@ -52,7 +52,7 @@ def _extract_pptx(file_path: Path, config: Config) -> list[ImageRecord]:
                     thumbnail_bytes=_downscale(raw, config.thumbnail_max_size),
                     recognition_bytes=_downscale(raw, config.recognition_max_size),
                 ))
-            except Exception as exc:
+            except (OSError, AttributeError, ValueError) as exc:
                 log.warning("Could not extract image slide %d shape %d: %s", slide_idx, shape_idx, exc)
     return records
 
@@ -74,6 +74,6 @@ def _extract_docx(file_path: Path, config: Config) -> list[ImageRecord]:
                             thumbnail_bytes=_downscale(raw, config.thumbnail_max_size),
                             recognition_bytes=_downscale(raw, config.recognition_max_size),
                         ))
-                    except Exception as exc:
+                    except (OSError, AttributeError, ValueError) as exc:
                         log.warning("Could not extract image paragraph %d: %s", para_idx, exc)
     return records
