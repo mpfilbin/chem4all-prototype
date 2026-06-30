@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument("--config", type=Path, help="Override config file location")
     args = parser.parse_args()
 
-    from config import load_config, Config
+    from config import load_config
     config = load_config(args.config)
     if args.in_place:
         config.output_mode = "in_place"
@@ -58,7 +58,6 @@ def main() -> None:
 def _launch_gui(config) -> None:
     from PyQt6.QtWidgets import QApplication
     from gui.app import run_app
-    import sys
     app = QApplication(sys.argv)
     run_app(app, config)
     sys.exit(app.exec())
