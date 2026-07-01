@@ -1,4 +1,3 @@
-from unittest.mock import patch, MagicMock
 import pytest
 from config import Config
 from models.image_record import ImageRecord
@@ -12,12 +11,6 @@ def _make_record(id="r1", recognition_bytes=b"fake_image"):
         thumbnail_bytes=b"thumb",
         recognition_bytes=recognition_bytes,
     )
-
-
-def _mock_decimer(smiles="C1=CC=CC=C1"):
-    mock = MagicMock()
-    mock.predict_SMILES.return_value = smiles
-    return mock
 
 
 def test_recognize_populates_smiles(monkeypatch):

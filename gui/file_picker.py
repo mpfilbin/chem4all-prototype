@@ -1,6 +1,5 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox,
@@ -9,8 +8,6 @@ from config import Config
 
 
 class FilePickerWindow(QWidget):
-    file_selected = pyqtSignal(Path)
-
     def __init__(self, config: Config) -> None:
         super().__init__()
         self._config = config

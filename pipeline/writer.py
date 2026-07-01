@@ -38,7 +38,7 @@ def write(
 
 
 def _parse_source_ref_pptx(source_ref: str) -> tuple[int, int]:
-    # "slide 3, shape 2" → (3, 2) both 1-indexed
+    # source_ref is 1-indexed; convert to 0-indexed
     parts = source_ref.replace(",", "").split()
     slide_idx = int(parts[1]) - 1
     shape_idx = int(parts[3]) - 1

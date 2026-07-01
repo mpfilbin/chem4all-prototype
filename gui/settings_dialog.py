@@ -2,7 +2,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QCheckBox, QDoubleSpinBox,
     QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox,
-    QWidget, QHBoxLayout, QGroupBox, QVBoxLayout,
+    QWidget, QHBoxLayout, QVBoxLayout,
 )
 from config import Config, save_config
 
@@ -11,7 +11,6 @@ class SettingsDialog(QDialog):
     def __init__(self, config: Config, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Settings")
-        self._original = config
         self.config = Config(**config.__dict__)  # working copy
 
         form = QFormLayout()
