@@ -22,10 +22,25 @@ class RecognizerWorker(QThread):
         self._config = config
 
     def run(self) -> None:
+        from pipeline.describer import describe_image
         from pipeline.namer import lookup_iupac, lookup_trivial_name
         api_key = os.environ.get("OPENROUTER_API_KEY") or self._config.openrouter_api_key
         total = len(self._records)
         for i, record in enumerate(self._records):
+
+            if record.prediction_type == "description":
+                self.status.emit(f"Describing {record.source_ref}  ({i + 1} of {total})…")
+                try:
+                    record.description = describe_image(record.recognition_bytes, api_key)
+                except Exception as exc:
+                    log.warning("Description failed for %s: %s", record.source_ref, exc)
+                    self.error.emit(f"Could not describe {record.source_ref}: {exc}")
+                finally:
+                    record.recognition_bytes = b""
+                self.progress.emit(i + 1, total)
+                self.record_ready.emit(record)
+                continue
+
             self.status.emit(f"Identifying {record.source_ref}  ({i + 1} of {total})…")
             try:
                 smiles, confidence = _run_decimer(record.recognition_bytes)
