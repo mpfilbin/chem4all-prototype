@@ -69,6 +69,7 @@ class ReviewWindow(QWidget):
         self._rows: list[_RecordRow] = []
         self._recognized = 0
         self._error_count = 0
+        self._recognition_done = False
 
         self.setWindowTitle(f"Review — {source_path.name}")
         self.setMinimumWidth(700)
@@ -107,12 +108,19 @@ class ReviewWindow(QWidget):
 
         self.setLayout(self._layout)
         self._render_page()
+        self._set_navigation_enabled(False)
 
     def _page_size(self) -> int:
         return self._config.page_size
 
     def _total_pages(self) -> int:
         return max(1, math.ceil(len(self._records) / self._page_size()))
+
+    def _set_navigation_enabled(self, enabled: bool) -> None:
+        self._accept_btn.setEnabled(enabled)
+        self._prev_btn.setEnabled(enabled and self._page > 0)
+        is_last = self._page >= self._total_pages() - 1
+        self._next_btn.setEnabled(enabled and not is_last)
 
     def _page_records(self) -> list[ImageRecord]:
         start = self._page * self._page_size()
@@ -129,9 +137,9 @@ class ReviewWindow(QWidget):
             self._rows.append(row)
             self._grid.addWidget(row)
         self._page_label.setText(f"Page {self._page + 1} of {self._total_pages()}")
-        self._prev_btn.setEnabled(self._page > 0)
+        self._prev_btn.setEnabled(self._recognition_done and self._page > 0)
         is_last = self._page >= self._total_pages() - 1
-        self._next_btn.setEnabled(not is_last)
+        self._next_btn.setEnabled(self._recognition_done and not is_last)
         self._accept_btn.setText("Accept & Finish" if is_last else "Accept & Next →")
 
     def _prev_page(self):
@@ -199,6 +207,8 @@ class ReviewWindow(QWidget):
             self._status_bar.setText(
                 f"Identification complete — {total} image(s) processed. Review results below."
             )
+        self._recognition_done = True
+        self._set_navigation_enabled(True)
 
     def on_recognition_error(self, msg: str) -> None:
         self._error_count += 1
