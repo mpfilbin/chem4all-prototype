@@ -11,8 +11,11 @@ def test_image_record_defaults():
     )
     assert record.predicted_smiles is None
     assert record.confidence is None
+    assert record.iupac_name is None
+    assert record.trivial_name is None
     assert record.approved_value is None
     assert record.is_chemical is None
+    assert record.prediction_type == "smiles"
 
 
 def test_image_record_to_review_dict_excludes_bytes():
@@ -23,6 +26,8 @@ def test_image_record_to_review_dict_excludes_bytes():
         recognition_bytes=b"recog",
         predicted_smiles="C1=CC=CC=C1",
         confidence=0.95,
+        iupac_name="benzene",
+        trivial_name="benzene",
         approved_value="C1=CC=CC=C1",
         is_chemical=True,
     )
@@ -31,8 +36,11 @@ def test_image_record_to_review_dict_excludes_bytes():
     assert "recognition_bytes" not in d
     assert d["id"] == "abc123"
     assert d["predicted_smiles"] == "C1=CC=CC=C1"
+    assert d["iupac_name"] == "benzene"
+    assert d["trivial_name"] == "benzene"
     assert d["approved_value"] == "C1=CC=CC=C1"
     assert d["is_chemical"] is True
+    assert d["prediction_type"] == "smiles"
 
 
 def test_image_record_from_review_dict_roundtrip():
@@ -43,12 +51,74 @@ def test_image_record_from_review_dict_roundtrip():
         recognition_bytes=b"",
         predicted_smiles="C1=CC=CC=C1",
         confidence=0.95,
+        iupac_name="benzene",
+        trivial_name="benzene",
         approved_value="C1=CC=CC=C1",
         is_chemical=True,
     )
     d = record.to_review_dict()
     restored = ImageRecord.from_review_dict(d)
     assert restored.id == record.id
+    assert restored.iupac_name == "benzene"
+    assert restored.trivial_name == "benzene"
     assert restored.approved_value == record.approved_value
     assert restored.thumbnail_bytes == b""
     assert restored.recognition_bytes == b""
+    assert restored.prediction_type == "smiles"
+
+
+def test_image_record_prediction_type_default():
+    record = ImageRecord(
+        id="x",
+        source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+    )
+    assert record.prediction_type == "smiles"
+
+
+def test_result_value_returns_smiles_by_default():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        predicted_smiles="C1=CC=CC=C1",
+        prediction_type="smiles",
+    )
+    assert record.result_value() == "C1=CC=CC=C1"
+
+
+def test_result_value_returns_iupac_name():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        iupac_name="benzene",
+        prediction_type="iupac",
+    )
+    assert record.result_value() == "benzene"
+
+
+def test_result_value_returns_trivial_name():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        trivial_name="benzene",
+        prediction_type="trivial",
+    )
+    assert record.result_value() == "benzene"
+
+
+def test_result_value_returns_none_when_name_not_yet_loaded():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        prediction_type="iupac",  # iupac_name not set yet
+    )
+    assert record.result_value() is None
