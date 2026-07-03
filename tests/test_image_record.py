@@ -15,6 +15,7 @@ def test_image_record_defaults():
     assert record.trivial_name is None
     assert record.approved_value is None
     assert record.is_chemical is None
+    assert record.description is None
     assert record.prediction_type == "smiles"
 
 
@@ -40,6 +41,7 @@ def test_image_record_to_review_dict_excludes_bytes():
     assert d["trivial_name"] == "benzene"
     assert d["approved_value"] == "C1=CC=CC=C1"
     assert d["is_chemical"] is True
+    assert d["description"] is None
     assert d["prediction_type"] == "smiles"
 
 
@@ -64,6 +66,7 @@ def test_image_record_from_review_dict_roundtrip():
     assert restored.approved_value == record.approved_value
     assert restored.thumbnail_bytes == b""
     assert restored.recognition_bytes == b""
+    assert restored.description is None
     assert restored.prediction_type == "smiles"
 
 
@@ -120,5 +123,38 @@ def test_result_value_returns_none_when_name_not_yet_loaded():
         thumbnail_bytes=b"",
         recognition_bytes=b"",
         prediction_type="iupac",  # iupac_name not set yet
+    )
+    assert record.result_value() is None
+
+
+def test_image_record_description_default():
+    record = ImageRecord(
+        id="x",
+        source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+    )
+    assert record.description is None
+
+
+def test_result_value_returns_description():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        description="Diagram of ATP synthase embedded in the inner mitochondrial membrane.",
+        prediction_type="description",
+    )
+    assert record.result_value() == "Diagram of ATP synthase embedded in the inner mitochondrial membrane."
+
+
+def test_result_value_returns_none_when_description_not_yet_loaded():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        prediction_type="description",  # description not set yet
     )
     assert record.result_value() is None

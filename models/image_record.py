@@ -12,11 +12,14 @@ class ImageRecord:
     confidence: float | None = None
     iupac_name: str | None = None
     trivial_name: str | None = None
+    description: str | None = None
     prediction_type: str = "smiles"
     approved_value: str | None = None
     is_chemical: bool | None = None
 
     def result_value(self) -> str | None:
+        if self.prediction_type == "description":
+            return self.description
         if self.prediction_type == "iupac":
             return self.iupac_name
         if self.prediction_type == "trivial":
@@ -31,6 +34,7 @@ class ImageRecord:
             "confidence": self.confidence,
             "iupac_name": self.iupac_name,
             "trivial_name": self.trivial_name,
+            "description": self.description,
             "prediction_type": self.prediction_type,
             "approved_value": self.approved_value,
             "is_chemical": self.is_chemical,
@@ -47,6 +51,7 @@ class ImageRecord:
             confidence=d.get("confidence"),
             iupac_name=d.get("iupac_name"),
             trivial_name=d.get("trivial_name"),
+            description=d.get("description"),
             prediction_type=d.get("prediction_type", "smiles"),
             approved_value=d.get("approved_value"),
             is_chemical=d.get("is_chemical"),
