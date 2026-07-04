@@ -15,7 +15,6 @@ chem4all processes PPTX and DOCX files, extracts images, identifies chemical str
 ## Requirements
 
 - Python 3.9–3.12 — TensorFlow (required by DECIMER) does not publish wheels for Python 3.13+
-- [asdf](https://asdf-vm.com) (recommended) — `.tool-versions` pins Python 3.12.13
 - Homebrew (macOS only) — required for the `cairo` system library used for SVG support
 - An [OpenRouter](https://openrouter.ai) API key if you intend to use IUPAC name lookup, common name lookup, or image description (not needed for SMILES-only use)
 
@@ -28,14 +27,7 @@ git clone <repo-url>
 cd chem4all
 ```
 
-### 2. Set Python version (asdf)
-
-```bash
-asdf install python 3.12.13   # if not already installed
-# .tool-versions pins this automatically — no manual set needed
-```
-
-### 3. Run the setup script
+### 2. Run the setup script
 
 ```bash
 ./setup.sh
