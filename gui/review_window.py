@@ -16,6 +16,7 @@ from gui.widgets import ThumbnailLabel
 _TYPE_LABELS = {
     "iupac": "IUPAC Name:",
     "trivial": "Common Name:",
+    "description": "Image Description:",
 }
 
 

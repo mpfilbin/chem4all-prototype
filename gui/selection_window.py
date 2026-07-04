@@ -125,8 +125,9 @@ class _SelectionRow(QFrame):
         self._smiles_radio = QRadioButton("SMILES")
         self._iupac_radio = QRadioButton("IUPAC Name")
         self._trivial_radio = QRadioButton("Common Name")
+        self._describe_radio = QRadioButton("Describe Image")
         self._type_group = QButtonGroup(self)
-        for btn in (self._smiles_radio, self._iupac_radio, self._trivial_radio):
+        for btn in (self._smiles_radio, self._iupac_radio, self._trivial_radio, self._describe_radio):
             self._type_group.addButton(btn)
             layout.addWidget(btn)
         self._smiles_radio.setChecked(True)
@@ -142,4 +143,6 @@ class _SelectionRow(QFrame):
             return "iupac"
         if self._trivial_radio.isChecked():
             return "trivial"
+        if self._describe_radio.isChecked():
+            return "description"
         return "smiles"
