@@ -2,6 +2,7 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image
@@ -14,13 +15,19 @@ from models.image_record import ImageRecord
 
 log = logging.getLogger(__name__)
 
+_ProgressCallback = Callable[[int, int], None]
 
-def extract(file_path: Path, config: Config) -> list[ImageRecord]:
+
+def extract(
+    file_path: Path,
+    config: Config,
+    on_progress: _ProgressCallback | None = None,
+) -> list[ImageRecord]:
     suffix = file_path.suffix.lower()
     if suffix == ".pptx":
-        return _extract_pptx(file_path, config)
+        return _extract_pptx(file_path, config, on_progress)
     elif suffix == ".docx":
-        return _extract_docx(file_path, config)
+        return _extract_docx(file_path, config, on_progress)
     else:
         raise ValueError(f"Unsupported file format: {suffix}")
 
@@ -71,9 +78,19 @@ def _is_picture_shape(shape) -> bool:
     return shape.shape_type == MSO_SHAPE_TYPE.PICTURE or shape.element.tag == _PIC_TAG
 
 
-def _extract_pptx(file_path: Path, config: Config) -> list[ImageRecord]:
+def _extract_pptx(
+    file_path: Path,
+    config: Config,
+    on_progress: _ProgressCallback | None = None,
+) -> list[ImageRecord]:
     prs = Presentation(str(file_path))
+    total = sum(
+        1 for slide in prs.slides
+        for shape in slide.shapes
+        if _is_picture_shape(shape)
+    )
     records: list[ImageRecord] = []
+    extracted = 0
     for slide_idx, slide in enumerate(prs.slides, start=1):
         for shape_idx, shape in enumerate(slide.shapes, start=1):
             if not _is_picture_shape(shape):
@@ -88,18 +105,30 @@ def _extract_pptx(file_path: Path, config: Config) -> list[ImageRecord]:
                 ))
             except (OSError, AttributeError, ValueError) as exc:
                 log.warning("Could not extract image slide %d shape %d: %s", slide_idx, shape_idx, exc)
+            extracted += 1
+            if on_progress:
+                on_progress(extracted, total)
     return records
 
 
-def _extract_docx(file_path: Path, config: Config) -> list[ImageRecord]:
+def _extract_docx(
+    file_path: Path,
+    config: Config,
+    on_progress: _ProgressCallback | None = None,
+) -> list[ImageRecord]:
     doc = Document(str(file_path))
+    image_rids = [
+        rid for rid, rel in doc.part.rels.items() if "image" in rel.reltype
+    ]
+    total = len(image_rids)
     records: list[ImageRecord] = []
     seen: set[str] = set()
     image_idx = 0
-    for rid, rel in doc.part.rels.items():
-        if "image" not in rel.reltype or rid in seen:
+    for rid in image_rids:
+        if rid in seen:
             continue
         seen.add(rid)
+        rel = doc.part.rels[rid]
         try:
             raw = rel.target_part.blob
             image_idx += 1
@@ -111,4 +140,6 @@ def _extract_docx(file_path: Path, config: Config) -> list[ImageRecord]:
             ))
         except (OSError, AttributeError, ValueError) as exc:
             log.warning("Could not extract image %d (rid=%s): %s", image_idx, rid, exc)
+        if on_progress:
+            on_progress(image_idx, total)
     return records

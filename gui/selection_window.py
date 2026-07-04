@@ -113,6 +113,11 @@ class _SelectionRow(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
 
+        self.checkbox = QCheckBox()
+        self.checkbox.setChecked(True)
+        self.checkbox.setToolTip("Include in identification")
+        layout.addWidget(self.checkbox)
+
         thumb = ThumbnailLabel(record, size=64)
         thumb.setFixedSize(72, 72)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -131,11 +136,6 @@ class _SelectionRow(QFrame):
             self._type_group.addButton(btn)
             layout.addWidget(btn)
         self._smiles_radio.setChecked(True)
-
-        self.checkbox = QCheckBox()
-        self.checkbox.setChecked(True)
-        self.checkbox.setToolTip("Include in identification")
-        layout.addWidget(self.checkbox)
 
     @property
     def prediction_type(self) -> str:

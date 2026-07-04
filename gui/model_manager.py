@@ -30,13 +30,15 @@ def is_model_ready() -> bool:
 
 class ModelPreloadWorker(QThread):
     """Imports DECIMER in the background so the TF model is warm before first use."""
-    finished = pyqtSignal()
+    finished = pyqtSignal(float)  # elapsed_seconds
     error = pyqtSignal(str)
 
     def run(self) -> None:
+        import time
+        t0 = time.perf_counter()
         try:
             import DECIMER.decimer  # noqa: F401 — triggers model load
-            self.finished.emit()
+            self.finished.emit(time.perf_counter() - t0)
         except Exception as exc:
             self.error.emit(str(exc))
 

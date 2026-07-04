@@ -23,7 +23,7 @@ def run_app(config: Config) -> object:
         from gui.model_manager import ModelPreloadWorker
         splash_message(splash, "Loading DECIMER model…")
         worker = ModelPreloadWorker()
-        worker.finished.connect(_finish)
+        worker.finished.connect(lambda elapsed: (window.set_model_load_time(elapsed), _finish()))
         worker.error.connect(lambda _msg: _finish())
         worker.start()
         window._preload_worker = worker  # keep reference alive during event loop

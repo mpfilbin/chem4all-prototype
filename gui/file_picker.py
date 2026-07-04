@@ -21,6 +21,12 @@ class FilePickerWindow(QWidget):
         self._model_banner = self._build_model_banner()
         layout.addWidget(self._model_banner)
 
+        self._model_load_label = QLabel()
+        self._model_load_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._model_load_label.setStyleSheet("QLabel { color: #6c757d; font-size: 11px; }")
+        self._model_load_label.hide()
+        layout.addWidget(self._model_load_label)
+
         layout.addWidget(QLabel("Open a PPTX or DOCX file to begin."))
 
         btn_row = QHBoxLayout()
@@ -38,11 +44,27 @@ class FilePickerWindow(QWidget):
         self._status_label.hide()
         layout.addWidget(self._status_label)
 
+        self._extract_progress_bar = QProgressBar()
+        self._extract_progress_bar.setRange(0, 0)
+        self._extract_progress_bar.setTextVisible(False)
+        self._extract_progress_bar.hide()
+        layout.addWidget(self._extract_progress_bar)
+
+        self._extract_count_label = QLabel()
+        self._extract_count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._extract_count_label.setStyleSheet("QLabel { color: #555; }")
+        self._extract_count_label.hide()
+        layout.addWidget(self._extract_count_label)
+
         self.setLayout(layout)
 
         from gui.model_manager import is_model_ready
         if is_model_ready():
             self._model_banner.hide()
+
+    def set_model_load_time(self, elapsed: float) -> None:
+        self._model_load_label.setText(f"DECIMER model loaded in {elapsed:.1f} s")
+        self._model_load_label.show()
 
     def _build_model_banner(self) -> QFrame:
         banner = QFrame()
@@ -137,17 +159,29 @@ class FilePickerWindow(QWidget):
         self._open_btn.setEnabled(False)
         self._status_label.setText(f"Extracting images from {file_path.name}…")
         self._status_label.show()
+        self._extract_progress_bar.setRange(0, 0)
+        self._extract_progress_bar.show()
+        self._extract_count_label.setText("Counting images…")
+        self._extract_count_label.show()
 
         self._extractor = ExtractorWorker(file_path, self._config)
         self._extractor.finished.connect(
             lambda records: self._on_extraction_done(records, file_path)
         )
+        self._extractor.progress.connect(self._on_extraction_progress)
         self._extractor.error.connect(self._on_extraction_error)
         self._extractor.start()
+
+    def _on_extraction_progress(self, extracted: int, total: int) -> None:
+        self._extract_progress_bar.setRange(0, total)
+        self._extract_progress_bar.setValue(extracted)
+        self._extract_count_label.setText(f"{extracted} of {total} images extracted")
 
     def _on_extraction_done(self, records: list, file_path: Path) -> None:
         self._open_btn.setEnabled(True)
         self._status_label.hide()
+        self._extract_progress_bar.hide()
+        self._extract_count_label.hide()
 
         if not records:
             QMessageBox.information(
@@ -165,4 +199,6 @@ class FilePickerWindow(QWidget):
     def _on_extraction_error(self, msg: str) -> None:
         self._open_btn.setEnabled(True)
         self._status_label.hide()
+        self._extract_progress_bar.hide()
+        self._extract_count_label.hide()
         QMessageBox.critical(self, "Extraction Error", msg)

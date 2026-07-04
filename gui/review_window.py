@@ -6,7 +6,7 @@ from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QTextEdit,
-    QMessageBox,
+    QMessageBox, QScrollArea,
 )
 from config import Config
 from models.image_record import ImageRecord
@@ -84,8 +84,14 @@ class ReviewWindow(QWidget):
         self._status_bar.setWordWrap(True)
         self._layout.addWidget(self._status_bar)
 
-        self._grid = QVBoxLayout()
-        self._layout.addLayout(self._grid)
+        self._scroll_area = QScrollArea()
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._grid_widget = QWidget()
+        self._grid = QVBoxLayout(self._grid_widget)
+        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._scroll_area.setWidget(self._grid_widget)
+        self._layout.addWidget(self._scroll_area)
 
         nav = QHBoxLayout()
         self._prev_btn = QPushButton("← Previous")
