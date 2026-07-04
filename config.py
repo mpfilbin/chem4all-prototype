@@ -8,12 +8,12 @@ _DEFAULT_PATH = Path.home() / ".chem4all" / "config.json"
 
 @dataclass
 class Config:
-    auto_filter: bool = False
-    confidence_threshold: float = 0.7
+    openrouter_api_key: str = ""
     thumbnail_max_size: int = 256
     recognition_max_size: int = 1024
     output_mode: str = "new_file"
     page_size: int = 5
+    preload_model: bool = False
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -24,7 +24,7 @@ def load_config(path: Path | None = None) -> Config:
         return config
     data = json.loads(p.read_text())
     defaults = asdict(Config())
-    defaults.update(data)
+    defaults.update({k: v for k, v in data.items() if k in defaults})
     return Config(**defaults)
 
 

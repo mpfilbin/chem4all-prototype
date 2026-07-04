@@ -1,10 +1,23 @@
 from __future__ import annotations
+from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
-    QDialog, QFormLayout, QCheckBox, QDoubleSpinBox,
+    QDialog, QFormLayout, QCheckBox,
     QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox,
-    QWidget, QHBoxLayout, QVBoxLayout,
+    QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel, QLineEdit, QPushButton,
 )
+from pathlib import Path
 from config import Config, save_config
+
+
+def _dir_size_human(path: Path) -> str:
+    total = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+    for unit in ("KB", "MB", "GB"):
+        total /= 1024
+        if total < 1024:
+            return f"{total:.1f} {unit}"
+    return f"{total:.1f} GB"
 
 
 class SettingsDialog(QDialog):
@@ -14,18 +27,6 @@ class SettingsDialog(QDialog):
         self.config = Config(**config.__dict__)  # working copy
 
         form = QFormLayout()
-
-        self._auto_filter = QCheckBox()
-        self._auto_filter.setChecked(config.auto_filter)
-        form.addRow("Auto-filter mode:", self._auto_filter)
-
-        self._threshold = QDoubleSpinBox()
-        self._threshold.setRange(0.0, 1.0)
-        self._threshold.setSingleStep(0.05)
-        self._threshold.setValue(config.confidence_threshold)
-        self._threshold.setEnabled(config.auto_filter)
-        self._auto_filter.toggled.connect(self._threshold.setEnabled)
-        form.addRow("Confidence threshold:", self._threshold)
 
         self._thumb_size = QSpinBox()
         self._thumb_size.setRange(64, 1024)
@@ -58,6 +59,14 @@ class SettingsDialog(QDialog):
         self._page_size.setValue(config.page_size)
         form.addRow("Review page size:", self._page_size)
 
+        self._preload_model = QCheckBox()
+        self._preload_model.setChecked(config.preload_model)
+        self._preload_model.setToolTip(
+            "Load the DECIMER model in the background when the app opens,\n"
+            "so the first identification is faster."
+        )
+        form.addRow("Preload model on startup:", self._preload_model)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save |
             QDialogButtonBox.StandardButton.Cancel
@@ -67,15 +76,82 @@ class SettingsDialog(QDialog):
 
         layout = QVBoxLayout()
         layout.addLayout(form)
+        layout.addWidget(self._build_openrouter_section())
+        layout.addWidget(self._build_model_info())
         layout.addWidget(buttons)
         self.setLayout(layout)
 
+    def _build_openrouter_section(self) -> QGroupBox:
+        box = QGroupBox("OpenRouter")
+        vbox = QVBoxLayout(box)
+        vbox.setSpacing(6)
+
+        key_row = QHBoxLayout()
+        key_row.addWidget(QLabel("API Key:"))
+        self._api_key_field = QLineEdit(self.config.openrouter_api_key)
+        self._api_key_field.setEchoMode(QLineEdit.EchoMode.Password)
+        self._api_key_field.setPlaceholderText("sk-or-…")
+        key_row.addWidget(self._api_key_field)
+        vbox.addLayout(key_row)
+
+        note = QLabel("The OPENROUTER_API_KEY environment variable takes precedence if set.")
+        note.setStyleSheet("color: #6c757d; font-size: 11px;")
+        note.setWordWrap(True)
+        vbox.addWidget(note)
+
+        return box
+
+    def _build_model_info(self) -> QGroupBox:
+        from gui.model_manager import MODEL_URLS, _decimer_home
+        box = QGroupBox("Model Files")
+        vbox = QVBoxLayout(box)
+        vbox.setSpacing(6)
+
+        home = _decimer_home()
+        path_str = str(home) if home else "pystow not installed"
+
+        path_row = QHBoxLayout()
+        path_row.addWidget(QLabel("Location:"))
+        path_edit = QLineEdit(path_str)
+        path_edit.setReadOnly(True)
+        path_edit.setToolTip("Directory where DECIMER model files are stored")
+        path_row.addWidget(path_edit)
+        open_btn = QPushButton("Show in Finder")
+        open_btn.setEnabled(home is not None and home.exists())
+        open_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(path_str)))
+        path_row.addWidget(open_btn)
+        vbox.addLayout(path_row)
+
+        model_form = QFormLayout()
+        model_form.setContentsMargins(0, 4, 0, 0)
+        for name in MODEL_URLS:
+            if home is not None:
+                model_dir = home / f"{name}_model"
+                present = (model_dir / "saved_model.pb").exists()
+                if present:
+                    size_str = _dir_size_human(model_dir)
+                    status_text = f"✓  Downloaded  ({size_str})"
+                    status_color = "#155724"
+                else:
+                    status_text = "✗  Not downloaded"
+                    status_color = "#721c24"
+            else:
+                status_text = "—  Unknown (pystow missing)"
+                status_color = "#6c757d"
+
+            label = QLabel(status_text)
+            label.setStyleSheet(f"color: {status_color}; font-weight: bold;")
+            model_form.addRow(f"{name}:", label)
+
+        vbox.addLayout(model_form)
+        return box
+
     def _save(self) -> None:
-        self.config.auto_filter = self._auto_filter.isChecked()
-        self.config.confidence_threshold = self._threshold.value()
+        self.config.openrouter_api_key = self._api_key_field.text().strip()
         self.config.thumbnail_max_size = self._thumb_size.value()
         self.config.recognition_max_size = self._recog_size.value()
         self.config.output_mode = "in_place" if self._in_place_radio.isChecked() else "new_file"
         self.config.page_size = self._page_size.value()
+        self.config.preload_model = self._preload_model.isChecked()
         save_config(self.config)
         self.accept()

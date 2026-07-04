@@ -17,7 +17,14 @@ def main() -> None:
     parser.add_argument("--in-place", action="store_true", dest="in_place", help="Overwrite original file")
     parser.add_argument("--output", type=Path, help="Explicit output file path")
     parser.add_argument("--config", type=Path, help="Override config file location")
+    parser.add_argument("--download-model", action="store_true", help="Pre-download the DECIMER model and exit")
     args = parser.parse_args()
+
+    if args.download_model:
+        print("Downloading DECIMER model (this may take several minutes)...")
+        import DECIMER.decimer  # noqa: F401 — triggers pystow download
+        print("Model ready.")
+        return
 
     from config import load_config
     config = load_config(args.config)
@@ -59,7 +66,7 @@ def _launch_gui(config) -> None:
     from PyQt6.QtWidgets import QApplication
     from gui.app import run_app
     app = QApplication(sys.argv)
-    run_app(app, config)
+    _window = run_app(config)  # noqa: F841 — keeps window alive during event loop
     sys.exit(app.exec())
 
 

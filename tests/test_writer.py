@@ -7,7 +7,7 @@ from pptx.util import Inches
 from docx import Document
 from config import Config
 from models.image_record import ImageRecord
-from pipeline.writer import write
+from pipeline.writer import write, _parse_source_ref_pptx
 
 
 def _make_png() -> bytes:
@@ -71,6 +71,11 @@ def test_writer_pptx_in_place(tmp_path):
     assert out == src
 
 
+def test_parse_source_ref_pptx():
+    assert _parse_source_ref_pptx("slide 1, shape 1") == (0, 0)
+    assert _parse_source_ref_pptx("slide 3, shape 2") == (2, 1)
+
+
 def test_writer_skips_non_chemical(tmp_path):
     src = _make_pptx_with_image(tmp_path)
     record = ImageRecord(
@@ -85,3 +90,42 @@ def test_writer_skips_non_chemical(tmp_path):
     # it with a SMILES/chemical value for non-chemical records
     descr = shape.element.nvPicPr.cNvPr.get("descr")
     assert descr in (None, "image.png")  # unmodified default, no SMILES injected
+
+
+# --- DOCX writer ---
+
+_WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+
+
+def _docx_doc_prs(path):
+    return Document(str(path)).element.findall(f'.//{{{_WP}}}docPr')
+
+
+def test_writer_docx_new_file(tmp_path):
+    src = _make_docx_with_image(tmp_path)
+    out = write([_approved_record("image 1")], src, Config(output_mode="new_file"))
+    assert out != src
+    assert out.exists()
+
+
+def test_writer_docx_in_place(tmp_path):
+    src = _make_docx_with_image(tmp_path)
+    out = write([_approved_record("image 1")], src, Config(output_mode="in_place"))
+    assert out == src
+
+
+def test_writer_docx_sets_alt_text(tmp_path):
+    src = _make_docx_with_image(tmp_path)
+    out = write([_approved_record("image 1")], src, Config(output_mode="new_file"))
+    assert any(dp.get("descr") == "C1=CC=CC=C1" for dp in _docx_doc_prs(out))
+
+
+def test_writer_docx_skips_non_chemical(tmp_path):
+    src = _make_docx_with_image(tmp_path)
+    record = ImageRecord(
+        id="abc", source_ref="image 1",
+        thumbnail_bytes=b"", recognition_bytes=b"",
+        is_chemical=False,
+    )
+    out = write([record], src, Config(output_mode="new_file"))
+    assert not any(dp.get("descr") == "C1=CC=CC=C1" for dp in _docx_doc_prs(out))

@@ -5,12 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chem4all"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.9,<3.13"
 dependencies = [
     "python-pptx",
     "python-docx",
     "Pillow",
     "PyQt6",
+    "DECIMER",
+    "cairosvg",
+    "requests",
 ]
 
 [project.scripts]

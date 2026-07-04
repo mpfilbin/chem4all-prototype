@@ -44,23 +44,7 @@ def test_recognize_handles_decimer_failure(monkeypatch):
     assert result[0].recognition_bytes == b""
 
 
-def test_recognize_autofilter_marks_low_confidence(monkeypatch):
-    monkeypatch.setattr(
-        "pipeline.recognizer._run_decimer",
-        lambda img_bytes: ("C", 0.3),
-    )
-    config = Config(auto_filter=True, confidence_threshold=0.7)
-    records = [_make_record()]
-    result = recognize(records, config)
-    assert result[0].is_chemical is False
 
-
-def test_recognize_autofilter_keeps_high_confidence(monkeypatch):
-    monkeypatch.setattr(
-        "pipeline.recognizer._run_decimer",
-        lambda img_bytes: ("C1=CC=CC=C1", 0.95),
-    )
-    config = Config(auto_filter=True, confidence_threshold=0.7)
-    records = [_make_record()]
-    result = recognize(records, config)
-    assert result[0].is_chemical is not False
+def test_recognize_empty_list(monkeypatch):
+    monkeypatch.setattr("pipeline.recognizer._run_decimer", lambda _: ("C", 1.0))
+    assert recognize([], Config()) == []

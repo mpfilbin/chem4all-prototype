@@ -65,25 +65,38 @@ def _write_docx(records: list[ImageRecord], dest: Path) -> None:
     if not approved:
         return
     doc = Document(str(dest))
-    # Build index of inline images by paragraph/image position
-    img_index = 0
-    ref_map: dict[str, object] = {}
-    for para_idx, para in enumerate(doc.paragraphs, start=1):
-        for run in para.runs:
-            for rel in run.part.rels.values():
-                if "image" in rel.reltype:
-                    img_index += 1
-                    ref_map[f"paragraph {para_idx}, image {img_index}"] = run.element
+
+    # Rebuild the same image-index → rid mapping the extractor used
+    seen: set[str] = set()
+    image_idx = 0
+    index_to_rid: dict[str, str] = {}
+    for rid, rel in doc.part.rels.items():
+        if "image" not in rel.reltype or rid in seen:
+            continue
+        seen.add(rid)
+        image_idx += 1
+        index_to_rid[f"image {image_idx}"] = rid
+
+    A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+
     for record in approved:
-        elem = ref_map.get(record.source_ref)
-        if elem is None:
-            log.warning("No element found for %s", record.source_ref)
+        rid = index_to_rid.get(record.source_ref)
+        if rid is None:
+            log.warning("No relationship found for %s", record.source_ref)
             continue
         try:
-            # Set alt text via drawing element title attribute
-            ns = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-            for drawing in elem.findall(f".//{{{ns}}}docPr"):
-                drawing.set("descr", record.approved_value)
+            for blip in doc.element.findall(f'.//{{{A}}}blip[@{{{R}}}embed="{rid}"]'):
+                node = blip.getparent()
+                while node is not None:
+                    if node.tag in (f'{{{WP}}}inline', f'{{{WP}}}anchor'):
+                        break
+                    node = node.getparent()
+                if node is not None:
+                    doc_pr = node.find(f'{{{WP}}}docPr')
+                    if doc_pr is not None:
+                        doc_pr.set("descr", record.approved_value)
         except Exception as exc:
             log.warning("Could not set alt-text for %s: %s", record.source_ref, exc)
     doc.save(str(dest))
