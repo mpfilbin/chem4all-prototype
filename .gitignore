@@ -170,3 +170,9 @@ cython_debug/
 node_modules/
 package.json
 package-lock.json
+
+# macOS
+.DS_Store
+
+# PyInstaller/dmg build output
+*.dmg
