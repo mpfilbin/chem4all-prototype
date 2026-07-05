@@ -1,5 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 from PyInstaller.utils.hooks import collect_all
+
+REPO_ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = []
 binaries = []
@@ -12,13 +15,13 @@ for pkg in ("DECIMER", "cairosvg", "cairocffi", "pystow"):
     hiddenimports += pkg_hiddenimports
 
 a = Analysis(
-    ["../main.py"],
-    pathex=[".."],
+    [os.path.join(REPO_ROOT, "main.py")],
+    pathex=[REPO_ROOT],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
-    runtime_hooks=["hooks/rthook_cairo.py"],
+    runtime_hooks=[os.path.join(SPECPATH, "hooks", "rthook_cairo.py")],
     excludes=[],
 )
 pyz = PYZ(a.pure)
