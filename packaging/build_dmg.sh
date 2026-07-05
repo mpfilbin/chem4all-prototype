@@ -14,13 +14,21 @@ pip install --quiet pyinstaller pyinstaller-hooks-contrib
 pyinstaller packaging/chem4all.spec --clean --noconfirm --distpath dist --workpath build
 
 APP_PATH="dist/chem4all.app"
-CAIRO_LIB="$(brew --prefix cairo)/lib/libcairo.2.dylib"
+FRAMEWORKS_DIR="${APP_PATH}/Contents/Frameworks"
+CAIRO_LIB_SRC="$(brew --prefix cairo)/lib/libcairo.2.dylib"
+CAIRO_LIB_NAME="$(basename "${CAIRO_LIB_SRC}")"
+CAIRO_LIB_BUNDLED="${FRAMEWORKS_DIR}/${CAIRO_LIB_NAME}"
 
-echo "Bundling cairo and its transitive dependencies..."
-dylibbundler -od -b \
+echo "Copying cairo into the app bundle..."
+mkdir -p "${FRAMEWORKS_DIR}"
+cp -L "${CAIRO_LIB_SRC}" "${CAIRO_LIB_BUNDLED}"
+install_name_tool -id "@executable_path/../Frameworks/${CAIRO_LIB_NAME}" "${CAIRO_LIB_BUNDLED}"
+
+echo "Bundling cairo's transitive dependencies..."
+dylibbundler -of -b \
   -x "${APP_PATH}/Contents/MacOS/chem4all" \
-  -x "${CAIRO_LIB}" \
-  -d "${APP_PATH}/Contents/Frameworks" \
+  -x "${CAIRO_LIB_BUNDLED}" \
+  -d "${FRAMEWORKS_DIR}" \
   -p "@executable_path/../Frameworks"
 
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
