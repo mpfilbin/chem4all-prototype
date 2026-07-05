@@ -2,21 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce a signed, notarized `chem4all.app` for both Apple Silicon and Intel Macs, built and released automatically via GitHub Actions from a version tag.
+**Goal:** Produce a signed, notarized `chem4all.app` for Apple Silicon (arm64) Macs, built and released automatically via GitHub Actions from a version tag. Intel Mac and Windows support are deferred follow-ups (see spec's "Future platforms" section) — the design keeps the build script and dmg naming arch-parameterized so adding Intel later is an additive CI change, not a rework.
 
-**Architecture:** PyInstaller bundles `main.py` and all dependencies into `chem4all.app`. A post-build step uses `dylibbundler` to pull in the Homebrew-installed `libcairo` dylib (which `cairosvg`/`cairocffi` load dynamically at runtime, so PyInstaller's static scanner never sees it), and a PyInstaller runtime hook points `DYLD_FALLBACK_LIBRARY_PATH` at the bundled copy. GitHub Actions builds natively on `macos-14` (arm64) and `macos-13` (Intel), codesigns every bundled dylib plus the app itself, notarizes and staples the result, packages it as a `.dmg`, and attaches both architecture's `.dmg` files to a GitHub Release when a version tag is pushed.
+**Architecture:** PyInstaller bundles `main.py` and all dependencies into `chem4all.app`. A post-build step uses `dylibbundler` to pull in the Homebrew-installed `libcairo` dylib (which `cairosvg`/`cairocffi` load dynamically at runtime, so PyInstaller's static scanner never sees it), and a PyInstaller runtime hook points `DYLD_FALLBACK_LIBRARY_PATH` at the bundled copy. GitHub Actions builds natively on `macos-14` (arm64), codesigns every bundled dylib plus the app itself, notarizes and staples the result, packages it as a `.dmg`, and attaches it to a GitHub Release when a version tag is pushed.
 
 **Tech Stack:** PyInstaller, `pyinstaller-hooks-contrib`, `dylibbundler`, `codesign`/`notarytool`/`stapler` (Xcode command line tools), GitHub Actions.
 
 ## Global Constraints
 
-- Support both Apple Silicon (arm64) and Intel (x86_64) Macs — native builds on each, not a universal2 binary (TensorFlow's universal2 wheel support is unreliable).
+- Target Apple Silicon (arm64) Macs only for this effort — a native build, not a universal2 binary (TensorFlow's universal2 wheel support is unreliable). Intel and Windows are explicitly out of scope for now; keep the build script and dmg naming arch-parameterized (`chem4all-<version>-<arch>.dmg`) so Intel can be added later as a second CI matrix leg without renaming or reworking.
 - Do not bundle the DECIMER model — it continues to download on first use exactly as it does today (`gui/model_manager.py`, unchanged).
 - The packaged app must be code-signed and notarized — no Gatekeeper warnings, no right-click-to-open workaround, since recipients are outside the developer's control.
 - Python version for the build must stay within `>=3.9,<3.13` (`pyproject.toml:8`) — TensorFlow does not publish wheels for 3.13+.
 - Packaging tool is PyInstaller (decided in the spec — not py2app, not Briefcase).
-- CI runners: `macos-14` for arm64, `macos-13` for Intel (confirm availability at implementation time — GitHub periodically retires older macOS images; substitute the nearest available Intel image if `macos-13` is gone).
-- Out of scope: CLI changes, config/API-key UX changes, Windows/Linux packaging.
+- CI runner: `macos-14` (arm64).
+- Out of scope: CLI changes, config/API-key UX changes, Intel Mac packaging, Windows/Linux packaging.
 
 ---
 
@@ -274,7 +274,7 @@ rm -rf dist build chem4all-0.1.0-dev-local.dmg
 
 **Interfaces:**
 - Consumes: `packaging/build_dmg.sh`, `packaging/chem4all.spec` from Tasks 1–2.
-- Produces: a `build` job matrix (`arm64`, `x86_64`) that later tasks extend with signing (Task 5), notarization (Task 6), and release publishing (Task 7). Job name `build` and matrix variable `matrix.arch`/`matrix.runner` are relied on by those tasks.
+- Produces: a `build` job matrix (currently just `arm64`) that later tasks extend with signing (Task 5), notarization (Task 6), and release publishing (Task 7). Job name `build` and matrix variable `matrix.arch`/`matrix.runner` are relied on by those tasks. The matrix has a single entry today so that adding Intel later (out of scope for this plan) is a one-line `include` addition rather than a restructure.
 
 - [ ] **Step 1: Create the workflow with an unsigned build only**
 
@@ -295,8 +295,6 @@ jobs:
         include:
           - arch: arm64
             runner: macos-14
-          - arch: x86_64
-            runner: macos-13
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -336,7 +334,7 @@ git commit -m "ci: add unsigned macOS build workflow"
 git push
 ```
 
-Then manually trigger it once via GitHub's UI (Actions tab → "Build macOS App" → "Run workflow") since it's not tag-triggered yet on a normal branch push. Confirm both `build (arm64)` and `build (x86_64)` jobs succeed and each uploads a `.dmg` artifact.
+Then manually trigger it once via GitHub's UI (Actions tab → "Build macOS App" → "Run workflow") since it's not tag-triggered yet on a normal branch push. Confirm the `build (arm64)` job succeeds and uploads a `.dmg` artifact.
 
 ---
 
@@ -407,7 +405,7 @@ git commit -m "ci: sign the built app and dmg with the Developer ID certificate"
 
 - [ ] **Step 5: Verify via manual workflow dispatch**
 
-Trigger the workflow manually (Actions tab → "Run workflow") and confirm both jobs succeed. Download one of the artifacts and check:
+Trigger the workflow manually (Actions tab → "Run workflow") and confirm the job succeeds. Download the artifact and check:
 
 ```bash
 codesign --verify --deep --strict chem4all.app
@@ -540,7 +538,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Watch the Actions tab: both `build` matrix jobs should succeed, followed by `release`. Confirm the GitHub Release for `v0.1.0` has both `chem4all-0.1.0-arm64.dmg` and `chem4all-0.1.0-x86_64.dmg` attached.
+Watch the Actions tab: the `build` job should succeed, followed by `release`. Confirm the GitHub Release for `v0.1.0` has `chem4all-0.1.0-arm64.dmg` attached.
 
 ---
 
@@ -558,7 +556,7 @@ In `README.md`, insert a new subsection right after the `## Installation` headin
 ```markdown
 ### Option A: Download the app (recommended for most users)
 
-1. Download the `.dmg` for your Mac from the [latest release](../../releases/latest) — `arm64` for Apple Silicon Macs, `x86_64` for Intel Macs.
+1. Download the `.dmg` for your Mac from the [latest release](../../releases/latest). Currently only Apple Silicon (`arm64`) Macs are supported — Intel and Windows builds are planned for a future release.
 2. Open the `.dmg` and drag `chem4all.app` to your Applications folder.
 3. Launch chem4all from Applications. No Python, Homebrew, or terminal setup is required — the app is self-contained except for the DECIMER model, which downloads automatically on first use.
 

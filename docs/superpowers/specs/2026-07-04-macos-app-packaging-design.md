@@ -7,21 +7,27 @@ chem4all currently requires cloning the repo, running `setup.sh` (installs a sys
 Goal: produce a signed, notarized `chem4all.app` that a recipient can double-click to run, with no Python, Homebrew, or terminal setup on their end.
 
 Constraints established during design:
-- Must support both Apple Silicon and Intel Macs.
+- **Target Apple Silicon (arm64) Macs only for now.** Intel Mac and Windows (arm64/x64) support are planned follow-ups, not part of this effort — see "Future platforms" below. Architecture-specific naming (`chem4all-<version>-arm64.dmg`) is used from the start so adding Intel later doesn't require a breaking rename.
 - The DECIMER model (~500 MB) is **not** bundled — it continues to download on first use, as it does today. The app itself stays small and this matches current behavior.
 - Recipients are instructors/users outside the developer's control, so the app must be code-signed and notarized (an Apple Developer Program membership is already in place) — no Gatekeeper warnings or right-click workarounds.
-- Builds happen on GitHub Actions using native macOS runners for each architecture, rather than a single universal2 build or manual builds on physically-owned hardware. TensorFlow (a DECIMER dependency) does not have reliable universal2 wheel support, so native-per-architecture builds are the reliable path.
+- Builds happen on GitHub Actions using a native `arm64` macOS runner rather than a universal2 build. TensorFlow (a DECIMER dependency) does not have reliable universal2 wheel support, so a native-architecture build is the reliable path — and also the right shape to extend to a second (Intel) matrix leg later with minimal change.
 - Packaging tool: **PyInstaller**. Chosen over py2app (weaker dependency-scanning for large native packages like TensorFlow — `modulegraph` misses dynamically-loaded native extensions) and Briefcase (project-template-based, no first-class handling for arbitrary native dylibs like cairo, not designed for this dependency mix). PyInstaller has a maintained TensorFlow hook and the largest body of prior art for this exact combination (Qt + TensorFlow).
 
-Out of scope: bundling the DECIMER model, changes to the CLI (`--review`, etc.), changes to config/API-key UX (already functional), Windows/Linux packaging.
+Out of scope: bundling the DECIMER model, changes to the CLI (`--review`, etc.), changes to config/API-key UX (already functional), Intel Mac packaging, Windows packaging.
+
+### Future platforms
+
+Intel Mac and Windows (arm64/x64) packaging are explicitly deferred, not abandoned. When picked up:
+- **Intel Mac** slots into Section 4's CI matrix as a second `macos-13`-or-nearest-available job (see the original multi-arch version of this section in git history, commit `c22a36d`, for the once-planned shape); Sections 1-3 (spec, cairo bundling, signing) are architecture-agnostic and should need no changes.
+- **Windows** is a materially different effort — different packaging tool considerations (PyInstaller still applies, but no cairo/Homebrew equivalent, different signing mechanism — Authenticode instead of Developer ID/notarization), and deserves its own design pass rather than an extension of this spec.
 
 ---
 
 ## Section 1 — PyInstaller build
 
-One `.spec` file, built twice (once per architecture) in CI. Entry point is the existing `main.py` — no code changes needed there, since double-clicking the app bundle invokes the executable with no `argv`, and `main.py`'s existing `if args.file is None: _launch_gui(config)` branch already handles that case.
+One `.spec` file, built on an `arm64` runner in CI. Entry point is the existing `main.py` — no code changes needed there, since double-clicking the app bundle invokes the executable with no `argv`, and `main.py`'s existing `if args.file is None: _launch_gui(config)` branch already handles that case.
 
-Build invocation (per architecture):
+Build invocation:
 ```bash
 pip install pyinstaller pyinstaller-hooks-contrib
 pyinstaller chem4all.spec --clean --noconfirm
@@ -67,17 +73,14 @@ GitHub Actions workflow, triggered on pushing a version tag (e.g. `v0.2.0`):
 jobs:
   build-arm64:
     runs-on: macos-14      # Apple Silicon
-  build-intel:
-    runs-on: macos-13      # Intel
 ```
 
-Each job independently: checkout → install Python 3.12 (within the existing `<3.13` TensorFlow constraint) → `brew install cairo dylibbundler` → `pip install -e .` → PyInstaller build (Section 1) → dylib bundling (Section 2) → codesign + notarize + staple (Section 3) → upload the resulting `.dmg` as a workflow artifact.
+The job: checkout → install Python 3.12 (within the existing `<3.13` TensorFlow constraint) → `brew install cairo dylibbundler` → `pip install -e .` → PyInstaller build (Section 1) → dylib bundling (Section 2) → codesign + notarize + staple (Section 3) → upload the resulting `.dmg` as a workflow artifact.
 
-A final job collects both artifacts and attaches them to a GitHub Release for the tag:
+A final job attaches the artifact to a GitHub Release for the tag:
 - `chem4all-0.2.0-arm64.dmg`
-- `chem4all-0.2.0-x86_64.dmg`
 
-Confirm at implementation time whether `macos-13` (Intel) is still available as a GitHub-hosted runner, since GitHub periodically retires older macOS runner images — substitute the nearest available Intel image if not.
+Adding Intel later means adding a second `build-intel` job (nearest-available Intel GitHub-hosted runner — confirm availability at that time, since GitHub periodically retires older macOS runner images) and one more line in the release job's artifact list; no other section of this design changes.
 
 ## Section 5 — Runtime behavior on the recipient's machine
 

@@ -1,5 +1,12 @@
 # macOS App Packaging — Handoff Note (paused 2026-07-05)
 
+**Scope update (2026-07-05, on resuming):** narrowed to Apple Silicon (arm64)
+only for this effort. Intel Mac and Windows (arm64/x64) are deferred to
+follow-up work — see the spec's new "Future platforms" section. The spec and
+plan have been updated accordingly (single-entry CI matrix, single dmg
+artifact, no Intel runner). `packaging/build_dmg.sh`'s `<arch>` parameter is
+kept as-is so Intel remains an additive change later.
+
 Work is paused mid-Task-3 to investigate an open correctness question before
 continuing. This note is the durable record — `.superpowers/sdd/` (progress
 ledger, task briefs/reports, review diffs) is git-ignored local scratch and
