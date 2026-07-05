@@ -17,7 +17,7 @@ APP_PATH="dist/chem4all.app"
 CAIRO_LIB="$(brew --prefix cairo)/lib/libcairo.2.dylib"
 
 echo "Bundling cairo and its transitive dependencies..."
-dylibbundler -od \
+dylibbundler -od -b \
   -x "${APP_PATH}/Contents/MacOS/chem4all" \
   -x "${CAIRO_LIB}" \
   -d "${APP_PATH}/Contents/Frameworks" \
