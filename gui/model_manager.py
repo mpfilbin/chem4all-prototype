@@ -37,7 +37,10 @@ class ModelPreloadWorker(QThread):
         import time
         t0 = time.perf_counter()
         try:
-            import DECIMER.decimer  # noqa: F401 — triggers model load
+            import numpy as np
+            from DECIMER import predict_SMILES
+            # Warm-up: force TF graph tracing now so the first real prediction is instant.
+            predict_SMILES(np.zeros((64, 64, 3), dtype=np.uint8))
             self.finished.emit(time.perf_counter() - t0)
         except Exception as exc:
             self.error.emit(str(exc))
