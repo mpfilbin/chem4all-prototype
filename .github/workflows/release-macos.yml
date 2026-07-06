@@ -1,0 +1,38 @@
+name: Build macOS App
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: brew install cairo dylibbundler
+
+      - name: Install Python dependencies
+        run: |
+          mkdir -p build
+          pip install -e .
+
+      - name: Build unsigned app and dmg
+        run: ./packaging/build_dmg.sh "${{ github.ref_name }}" "${{ matrix.arch }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chem4all-${{ matrix.arch }}
+          path: packaging/build/chem4all-*.dmg
