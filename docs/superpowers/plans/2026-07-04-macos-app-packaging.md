@@ -124,7 +124,7 @@ git commit -m "build: add PyInstaller spec and cairo runtime hook"
 
 **Interfaces:**
 - Consumes: `packaging/chem4all.spec` and `packaging/hooks/rthook_cairo.py` from Task 1.
-- Produces: `dist/chem4all.app` (built app bundle) and `chem4all-<version>-<arch>.dmg` in the working directory, consumed by Task 4's CI workflow and Task 9's manual verification.
+- Produces: `packaging/build/dist/chem4all.app` (built app bundle) and `packaging/build/chem4all-<version>-<arch>.dmg`, consumed by Task 4's CI workflow and Task 9's manual verification. All PyInstaller/dylib-bundling/dmg output is consolidated under `packaging/build/` so it can be wiped with a single `rm -rf packaging/build`.
 - Environment contract: if `CODESIGN_IDENTITY` is set in the environment, the script signs; if unset, it produces an unsigned build for local iteration.
 
 - [ ] **Step 1: Create the entitlements file**
@@ -233,12 +233,12 @@ brew install dylibbundler
 ./packaging/build_dmg.sh 0.1.0-dev local
 ```
 
-Expected: completes without error and produces `dist/chem4all.app` and `chem4all-0.1.0-dev-local.dmg`. This step can take several minutes — PyInstaller has to trace TensorFlow's large dependency graph.
+Expected: completes without error and produces `packaging/build/dist/chem4all.app` and `packaging/build/chem4all-0.1.0-dev-local.dmg`. This step can take several minutes — PyInstaller has to trace TensorFlow's large dependency graph.
 
 - [ ] **Step 3: Verify cairo resolves inside the bundle**
 
 ```bash
-ls dist/chem4all.app/Contents/Frameworks | grep -i cairo
+ls packaging/build/dist/chem4all.app/Contents/Frameworks | grep -i cairo
 ```
 
 Expected: `libcairo.2.dylib` (or similar) is listed.
@@ -246,9 +246,9 @@ Expected: `libcairo.2.dylib` (or similar) is listed.
 - [ ] **Step 4: Launch the built app and confirm it starts**
 
 ```bash
-open dist/chem4all.app
+open packaging/build/dist/chem4all.app
 sleep 5
-pgrep -f "dist/chem4all.app/Contents/MacOS/chem4all" && echo "still running"
+pgrep -f "packaging/build/dist/chem4all.app/Contents/MacOS/chem4all" && echo "still running"
 ```
 
 Expected: `still running` — confirms no immediate startup crash (e.g. a missing hidden import). Manually confirm the file picker window appeared, then quit the app.
@@ -260,7 +260,7 @@ Open a `.pptx` containing at least one SVG or vector image through the built app
 - [ ] **Step 6: Clean up local build artifacts**
 
 ```bash
-rm -rf dist build chem4all-0.1.0-dev-local.dmg
+rm -rf packaging/build
 ```
 
 (No commit — this task only validates Tasks 1–2; `dist/`, `build/`, and `*.dmg` are already covered by the existing PyInstaller section of `.gitignore`.)
@@ -307,7 +307,9 @@ jobs:
         run: brew install cairo dylibbundler
 
       - name: Install Python dependencies
-        run: pip install -e .
+        run: |
+          mkdir -p build
+          pip install -e .
 
       - name: Build unsigned app and dmg
         run: ./packaging/build_dmg.sh "${{ github.ref_name }}" "${{ matrix.arch }}"
@@ -315,7 +317,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: chem4all-${{ matrix.arch }}
-          path: chem4all-*.dmg
+          path: packaging/build/chem4all-*.dmg
 ```
 
 - [ ] **Step 2: Verify workflow YAML syntax**
@@ -454,7 +456,7 @@ Insert after "Build, sign, and package app" in `.github/workflows/release-macos.
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/authkey.p8"
-          DMG_FILE=$(ls chem4all-*.dmg)
+          DMG_FILE=$(ls packaging/build/chem4all-*.dmg)
           xcrun notarytool submit "$DMG_FILE" \
             --key "$RUNNER_TEMP/authkey.p8" \
             --key-id "$APPLE_API_KEY_ID" \

@@ -61,7 +61,7 @@ Per-build CI steps:
 1. Import the certificate into a temporary, ephemeral keychain (created and destroyed within the job).
 2. Codesign **each dylib bundled by `dylibbundler` individually** with the Developer ID certificate. Homebrew dylibs are ad-hoc-signed or unsigned by default, which fails Hardened Runtime library validation unless every bundled dylib carries a matching signature.
 3. Codesign `chem4all.app` itself: `codesign --deep --force --options runtime --entitlements entitlements.plist --sign "<Developer ID>" chem4all.app`
-4. Package into a `.dmg` (`hdiutil create` or `create-dmg`).
+4. Package into a `.dmg`: stage `chem4all.app` plus an `Applications` symlink in a temp folder, then `hdiutil create` from that folder — gives a standard drag-to-install layout without depending on Finder/AppleScript automation (tried `create-dmg` for a styled layout; its Finder-scripting step proved unreliable even in an interactive local terminal, `AppleEvent timed out (-1712)` — too fragile for CI).
 5. Submit for notarization: `xcrun notarytool submit chem4all-<version>-<arch>.dmg --key-id ... --issuer ... --key ... --wait`
 6. Staple the ticket: `xcrun stapler staple chem4all-<version>-<arch>.dmg` — this lets Gatekeeper verify offline on the recipient's machine.
 

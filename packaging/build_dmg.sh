@@ -10,10 +10,14 @@ cd "$REPO_ROOT"
 
 echo "Building chem4all.app for ${ARCH}, version ${VERSION}"
 
-pip install --quiet pyinstaller pyinstaller-hooks-contrib
-pyinstaller packaging/chem4all.spec --clean --noconfirm --distpath dist --workpath build
+BUILD_DIR="packaging/build"
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
 
-APP_PATH="dist/chem4all.app"
+pip install --quiet pyinstaller pyinstaller-hooks-contrib
+pyinstaller packaging/chem4all.spec --clean --noconfirm --distpath "${BUILD_DIR}/dist" --workpath "${BUILD_DIR}/work"
+
+APP_PATH="${BUILD_DIR}/dist/chem4all.app"
 FRAMEWORKS_DIR="${APP_PATH}/Contents/Frameworks"
 CAIRO_LIB_SRC="$(brew --prefix cairo)/lib/libcairo.2.dylib"
 CAIRO_LIB_NAME="$(basename "${CAIRO_LIB_SRC}")"
@@ -47,11 +51,20 @@ else
 fi
 
 DMG_NAME="chem4all-${VERSION}-${ARCH}.dmg"
+DMG_PATH="${BUILD_DIR}/${DMG_NAME}"
+DMG_STAGING_DIR="$(mktemp -d)"
+trap 'rm -rf "${DMG_STAGING_DIR}"' EXIT
+
+echo "Staging dmg contents..."
+cp -R "${APP_PATH}" "${DMG_STAGING_DIR}/"
+ln -s /Applications "${DMG_STAGING_DIR}/Applications"
+
 echo "Creating ${DMG_NAME}..."
-hdiutil create -volname "chem4all" -srcfolder "${APP_PATH}" -ov -format UDZO "${DMG_NAME}"
+rm -f "${DMG_PATH}"
+hdiutil create -volname "chem4all" -srcfolder "${DMG_STAGING_DIR}" -ov -format UDZO "${DMG_PATH}"
 
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
-  codesign --force --sign "${CODESIGN_IDENTITY}" "${DMG_NAME}"
+  codesign --force --sign "${CODESIGN_IDENTITY}" "${DMG_PATH}"
 fi
 
-echo "Built ${DMG_NAME}"
+echo "Built ${DMG_PATH}"
