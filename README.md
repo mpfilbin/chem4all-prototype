@@ -4,6 +4,38 @@ A Python tool that makes chemistry course handouts and presentations accessible 
 
 chem4all processes PPTX and DOCX files, extracts images, identifies chemical structures using [DECIMER Image Transformer](https://github.com/Kohulan/DECIMER-Image_Transformer), and writes approved alt-text back to the original document. For each image the instructor can choose to produce a SMILES string, an IUPAC name, a common name, or a plain-English description — useful for non-chemical images like cell membranes and biochemical pathway diagrams.
 
+## Screenshots
+
+On launch, chem4all loads the DECIMER model in the background and shows progress on a splash screen:
+
+<img src="docs/images/loading-screen.png" alt="chem4all loading screen, showing the app name, tagline, and DECIMER model loading status" width="500">
+
+Once the model is loaded, the main screen reports the load time and lets you open a `.pptx` or `.docx` file, or open Settings:
+
+<img src="docs/images/main-screen.png" alt="chem4all main screen, showing the Open File and Settings buttons once the DECIMER model has loaded" width="500">
+
+The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk:
+
+<img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, and DECIMER model file locations" width="500">
+
+After a file is opened and its images extracted, the Select Images screen lists every image found, each with a checkbox and a choice of SMILES, IUPAC name, or common name output:
+
+<img src="docs/images/select-images-screen.png" alt="chem4all Select Images screen, showing extracted images with checkboxes and SMILES/IUPAC Name/Common Name radio buttons for each" width="500">
+
+While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish — each with a custom override field in case you want to edit or replace a prediction:
+
+<img src="docs/images/review-screen-processing.png" alt="chem4all Review screen while identification is still in progress, showing a progress banner and predicted image descriptions with custom override fields" width="500">
+
+Once you accept the results, chem4all confirms where the accessible file was written and offers to open it directly:
+
+<img src="docs/images/completion-modal.png" alt="chem4all completion dialog confirming the accessible file was written, with Close and Open File buttons" width="300">
+
+### The result
+
+The written alt-text shows up as native PowerPoint/Word alt-text, ready for any screen reader:
+
+<img src="docs/images/result-in-powerpoint.png" alt="PowerPoint Accessibility pane showing generated alt-text for an animal cell diagram, describing labeled organelles including the nucleus, mitochondria, endoplasmic reticulum, and Golgi apparatus" width="700">
+
 ## How it works
 
 1. **Extract** — images are pulled from your PPTX or DOCX file and downscaled for processing
@@ -23,7 +55,10 @@ chem4all processes PPTX and DOCX files, extracts images, identifies chemical str
 ### Option A: Download the app (recommended for most users)
 
 1. Download the `.dmg` for your Mac from the [latest release](../../releases/latest). Currently only Apple Silicon (`arm64`) Macs are supported — Intel and Windows builds are planned for a future release.
-2. Open the `.dmg` and drag `chem4all.app` to your Applications folder.
+2. Open the `.dmg` and drag `chem4all.app` to your Applications folder:
+
+   <img src="docs/images/dmg-install.png" alt="Mounted chem4all dmg window, showing the chem4all app icon next to a shortcut to the Applications folder for drag-and-drop installation" width="500">
+
 3. Launch chem4all from Applications. No Python, Homebrew, or terminal setup is required — the app is self-contained except for the DECIMER model, which downloads automatically on first use.
 
 ### Option B: Run from source (for development)
