@@ -32,6 +32,7 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!packaging/chem4all.spec
 
 # Installer logs
 pip-log.txt
@@ -169,3 +170,9 @@ cython_debug/
 node_modules/
 package.json
 package-lock.json
+
+# macOS
+.DS_Store
+
+# PyInstaller/dmg build output
+*.dmg
