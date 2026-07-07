@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chem4all"
-version = "0.1.0-test1"
+version = "0.1.0"
 license = "GPL-3.0-only"
 requires-python = ">=3.9,<3.13"
 dependencies = [

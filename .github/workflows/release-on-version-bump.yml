@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - macos-app-packaging # TEMPORARY: remove before merging, testing only
     paths:
       - pyproject.toml
 
