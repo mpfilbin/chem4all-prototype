@@ -1,5 +1,17 @@
 # macOS App Packaging — Handoff Note (paused 2026-07-05)
 
+> **Resolved 2026-07-07:** the open question below was confirmed and fixed.
+> `dylibbundler -b` (bundle mode) was missing from the invocation, so it
+> never actually copied the 4 missing transitive deps — the `LC_RPATH`
+> fallback hypothesis was correct. Fix landed in
+> `packaging/build_dmg.sh` (the `-b` flag plus copy-cairo-first ordering).
+> Verified in the real `v0.1.0` release CI log: `libpixman-1.0.dylib`,
+> `libXext.6.dylib`, `libXrender.1.dylib`, and `libxcb-render.0.0.0.dylib`
+> are all present in `Contents/Frameworks` with rewritten install names, and
+> the app installed and ran cleanly on a clean recipient Mac with no
+> Homebrew dependency. Tasks 3-9 are complete; see
+> `docs/superpowers/plans/2026-07-04-macos-app-packaging.md` for final status.
+
 **Scope update (2026-07-05, on resuming):** narrowed to Apple Silicon (arm64)
 only for this effort. Intel Mac and Windows (arm64/x64) are deferred to
 follow-up work — see the spec's new "Future platforms" section. The spec and

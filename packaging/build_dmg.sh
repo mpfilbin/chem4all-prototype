@@ -50,13 +50,25 @@ else
   echo "CODESIGN_IDENTITY not set — producing an unsigned build for local testing."
 fi
 
+NOTARIZE_ARGS=()
+if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+  NOTARIZE_ARGS=(--key "${APPLE_API_KEY_PATH}" --key-id "${APPLE_API_KEY_ID}" --issuer "${APPLE_API_ISSUER}")
+
+  echo "Notarizing app bundle..."
+  APP_ZIP_DIR="$(mktemp -d)"
+  APP_ZIP="${APP_ZIP_DIR}/chem4all.app.zip"
+  ditto -c -k --keepParent "${APP_PATH}" "${APP_ZIP}"
+  xcrun notarytool submit "${APP_ZIP}" "${NOTARIZE_ARGS[@]}" --wait
+  xcrun stapler staple "${APP_PATH}"
+fi
+
 DMG_NAME="chem4all-${VERSION}-${ARCH}.dmg"
 DMG_PATH="${BUILD_DIR}/${DMG_NAME}"
 DMG_STAGING_DIR="$(mktemp -d)"
-trap 'rm -rf "${DMG_STAGING_DIR}"' EXIT
+trap 'rm -rf "${DMG_STAGING_DIR}" "${APP_ZIP_DIR:-}"' EXIT
 
 echo "Staging dmg contents..."
-cp -R "${APP_PATH}" "${DMG_STAGING_DIR}/"
+ditto "${APP_PATH}" "${DMG_STAGING_DIR}/chem4all.app"
 ln -s /Applications "${DMG_STAGING_DIR}/Applications"
 
 echo "Creating ${DMG_NAME}..."
@@ -65,6 +77,12 @@ hdiutil create -volname "chem4all" -srcfolder "${DMG_STAGING_DIR}" -ov -format U
 
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
   codesign --force --sign "${CODESIGN_IDENTITY}" "${DMG_PATH}"
+fi
+
+if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+  echo "Notarizing dmg..."
+  xcrun notarytool submit "${DMG_PATH}" "${NOTARIZE_ARGS[@]}" --wait
+  xcrun stapler staple "${DMG_PATH}"
 fi
 
 echo "Built ${DMG_PATH}"

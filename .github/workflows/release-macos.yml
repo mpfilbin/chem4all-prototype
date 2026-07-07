@@ -46,26 +46,29 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
           rm "$RUNNER_TEMP/cert.p12"
 
-      - name: Build, sign, and package app
+      - name: Build, sign, notarize, and package app
         env:
           CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
-        run: ./packaging/build_dmg.sh "${{ github.ref_name }}" "${{ matrix.arch }}"
-
-      - name: Notarize dmg
-        env:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/authkey.p8"
-          DMG_FILE=$(ls packaging/build/chem4all-*.dmg)
-          xcrun notarytool submit "$DMG_FILE" \
-            --key "$RUNNER_TEMP/authkey.p8" \
-            --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER" \
-            --wait
-          xcrun stapler staple "$DMG_FILE"
+          export APPLE_API_KEY_PATH="$RUNNER_TEMP/authkey.p8"
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./packaging/build_dmg.sh "$VERSION" "${{ matrix.arch }}"
           rm "$RUNNER_TEMP/authkey.p8"
+
+      - name: Verify signed and notarized app
+        run: |
+          APP_PATH="packaging/build/dist/chem4all.app"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          spctl -a -vvv --type execute "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          open "$APP_PATH"
+          sleep 5
+          pgrep -f "chem4all.app/Contents/MacOS/chem4all"
+          pkill -f "chem4all.app/Contents/MacOS/chem4all"
 
       - uses: actions/upload-artifact@v4
         with:

@@ -28,14 +28,14 @@ chem4all processes PPTX and DOCX files, extracts images, identifies chemical str
 
 ### Option B: Run from source (for development)
 
-### 1. Clone the repository
+#### 1. Clone the repository
 
 ```bash
 git clone <repo-url>
 cd chem4all
 ```
 
-### 2. Run the setup script
+#### 2. Run the setup script
 
 ```bash
 ./setup.sh
@@ -43,7 +43,7 @@ cd chem4all
 
 The script installs all Python dependencies directly into the active interpreter using `pip install -e .`. No virtual environment is created or required.
 
-### 4. (Optional) Pre-download the DECIMER model
+#### 3. (Optional) Pre-download the DECIMER model
 
 The DECIMER model (~500 MB) is downloaded on first use. To fetch it now so the GUI starts immediately:
 
@@ -53,7 +53,7 @@ python3 main.py --download-model
 
 > **Note:** Ensure you have a stable internet connection and at least 2 GB of free disk space.
 
-### 5. (Optional) Configure your OpenRouter API key
+#### 4. (Optional) Configure your OpenRouter API key
 
 Set the environment variable before launching, or enter the key in the GUI under **Settings**:
 
