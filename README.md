@@ -179,3 +179,9 @@ chem4all/
 - **DECIMER load time** — the TensorFlow model takes ~60–100 s to load on CPU. `tensorflow-metal` (Apple Silicon GPU acceleration) is not yet compatible with TensorFlow 2.16+ and Python 3.12, so CPU is the only supported backend.
 - **DOCX image indexing** — images in DOCX files are indexed by relationship ID, which may not match visual reading order in complex layouts. PPTX support is more robust.
 - **No review file apply** — the `--review` flag generates a JSON review file, but applying a previously-saved review back via CLI is not yet implemented.
+
+## License
+
+chem4all is licensed under the [GNU General Public License v3.0](LICENSE) (GPLv3).
+
+This is required by the GUI framework, [PyQt6](https://www.riverbankcomputing.com/software/pyqt/), which Riverbank Computing licenses as GPLv3 or a paid commercial license (no permissive tier). Since PyQt6 is bundled directly into the packaged app, the distributed `.app`/`.dmg` is a GPLv3-covered work, and chem4all's own source is licensed to match.
