@@ -52,6 +52,8 @@ fi
 
 NOTARIZE_ARGS=()
 if [ -n "${APPLE_API_KEY_PATH:-}" ]; then
+  : "${APPLE_API_KEY_ID:?APPLE_API_KEY_ID must be set when APPLE_API_KEY_PATH is set}"
+  : "${APPLE_API_ISSUER:?APPLE_API_ISSUER must be set when APPLE_API_KEY_PATH is set}"
   NOTARIZE_ARGS=(--key "${APPLE_API_KEY_PATH}" --key-id "${APPLE_API_KEY_ID}" --issuer "${APPLE_API_ISSUER}")
 
   echo "Notarizing app bundle..."

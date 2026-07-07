@@ -33,7 +33,6 @@ fi
 
 echo "Installing dependencies..."
 $PIP install --upgrade pip --quiet
-mkdir -p build
 $PIP install -e . --quiet
 
 echo ""
