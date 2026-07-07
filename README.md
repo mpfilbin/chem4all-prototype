@@ -15,10 +15,18 @@ chem4all processes PPTX and DOCX files, extracts images, identifies chemical str
 ## Requirements
 
 - Python 3.9–3.12 — TensorFlow (required by DECIMER) does not publish wheels for Python 3.13+
-- Homebrew (macOS only) — required for the `cairo` system library used for SVG support
+- Homebrew (macOS only, source install only) — required for the `cairo` system library used for SVG support. Not needed if you download the packaged `.app` — cairo is bundled.
 - An [OpenRouter](https://openrouter.ai) API key if you intend to use IUPAC name lookup, common name lookup, or image description (not needed for SMILES-only use)
 
 ## Installation
+
+### Option A: Download the app (recommended for most users)
+
+1. Download the `.dmg` for your Mac from the [latest release](../../releases/latest). Currently only Apple Silicon (`arm64`) Macs are supported — Intel and Windows builds are planned for a future release.
+2. Open the `.dmg` and drag `chem4all.app` to your Applications folder.
+3. Launch chem4all from Applications. No Python, Homebrew, or terminal setup is required — the app is self-contained except for the DECIMER model, which downloads automatically on first use.
+
+### Option B: Run from source (for development)
 
 ### 1. Clone the repository
 
