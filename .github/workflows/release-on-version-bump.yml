@@ -1,0 +1,57 @@
+name: Tag Release on Version Bump
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - pyproject.toml
+
+jobs:
+  detect-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for a version bump in pyproject.toml
+        id: check
+        run: |
+          NEW_VERSION=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          OLD_VERSION=$(git show "${{ github.event.before }}:pyproject.toml" 2>/dev/null | grep -m1 '^version = ' | sed -E 's/version = "(.*)"/\1/' || echo "")
+          echo "new=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          if [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "$OLD_VERSION" ]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check release tag does not already exist
+        if: steps.check.outputs.bumped == 'true'
+        id: tagcheck
+        run: |
+          TAG="v${{ steps.check.outputs.new }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push release tag
+        if: steps.check.outputs.bumped == 'true' && steps.tagcheck.outputs.exists == 'false'
+        run: |
+          TAG="v${{ steps.check.outputs.new }}"
+          git tag "$TAG" "${{ github.sha }}"
+          git push origin "$TAG"
+
+      - name: Dispatch release build
+        if: steps.check.outputs.bumped == 'true' && steps.tagcheck.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.check.outputs.new }}"
+          gh workflow run release-macos.yml --ref "$TAG"
