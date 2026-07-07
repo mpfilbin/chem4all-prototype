@@ -51,6 +51,22 @@ jobs:
           CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
         run: ./packaging/build_dmg.sh "${{ github.ref_name }}" "${{ matrix.arch }}"
 
+      - name: Notarize dmg
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/authkey.p8"
+          DMG_FILE=$(ls packaging/build/chem4all-*.dmg)
+          xcrun notarytool submit "$DMG_FILE" \
+            --key "$RUNNER_TEMP/authkey.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$DMG_FILE"
+          rm "$RUNNER_TEMP/authkey.p8"
+
       - uses: actions/upload-artifact@v4
         with:
           name: chem4all-${{ matrix.arch }}
