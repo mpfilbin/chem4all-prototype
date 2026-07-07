@@ -3,6 +3,7 @@ import os
 from PyInstaller.utils.hooks import collect_all
 
 REPO_ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
+APP_VERSION = os.environ.get("CHEM4ALL_VERSION", "0.0.0")
 
 datas = []
 binaries = []
@@ -39,7 +40,7 @@ app = BUNDLE(
     icon=None,
     bundle_identifier="com.mpfilbin.chem4all",
     info_plist={
-        "CFBundleShortVersionString": "0.1.0",
+        "CFBundleShortVersionString": APP_VERSION,
         "NSHighResolutionCapable": True,
     },
 )

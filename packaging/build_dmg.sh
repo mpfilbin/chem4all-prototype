@@ -15,7 +15,7 @@ rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 
 pip install --quiet pyinstaller pyinstaller-hooks-contrib
-pyinstaller packaging/chem4all.spec --clean --noconfirm --distpath "${BUILD_DIR}/dist" --workpath "${BUILD_DIR}/work"
+CHEM4ALL_VERSION="${VERSION}" pyinstaller packaging/chem4all.spec --clean --noconfirm --distpath "${BUILD_DIR}/dist" --workpath "${BUILD_DIR}/work"
 
 APP_PATH="${BUILD_DIR}/dist/chem4all.app"
 FRAMEWORKS_DIR="${APP_PATH}/Contents/Frameworks"
