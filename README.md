@@ -4,6 +4,22 @@ A Python tool that makes chemistry course handouts and presentations accessible 
 
 chem4all processes PPTX and DOCX files, extracts images, identifies chemical structures using [DECIMER Image Transformer](https://github.com/Kohulan/DECIMER-Image_Transformer), and writes approved alt-text back to the original document. For each image the instructor can choose to produce a SMILES string, an IUPAC name, a common name, or a plain-English description — useful for non-chemical images like cell membranes and biochemical pathway diagrams.
 
+---
+
+## ⚠️ Prototype software — please read before use
+
+**chem4all is prototype/experimental software.** It is provided for testing, evaluation, and research purposes only, and is **not** intended for production, clinical, safety-critical, or other high-stakes use. Do not depend on it as the sole means of producing accessible course materials without independent review of the output by a qualified person — this is especially important for AI-generated chemical structure identifications (SMILES, IUPAC/common names) and image descriptions, which may be inaccurate or misleading if used unreviewed.
+
+**No warranty.** This software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the implied warranties of **merchantability**, **fitness for a particular purpose**, and **noninfringement**. The maintainer(s) make no representation or guarantee regarding the accuracy, reliability, or completeness of chem4all or any output it generates.
+
+**No liability.** To the maximum extent permitted by law, the maintainer(s) of this project shall not be held liable for any claim, damages, or other liability — whether in an action of contract, tort, or otherwise — arising from, out of, or in connection with the software or its use. You use chem4all entirely at your own risk. (These terms reinforce, and do not replace, the warranty and liability disclaimers already present in the [GPLv3 license](LICENSE), sections 15–16.)
+
+**Limited support and maintenance.** This project is maintained on a best-effort, volunteer basis. No guarantee is made about the duration of support for any publicly released version, the frequency of updates, or the resolution of bugs or feature requests. Maintenance may be reduced or may end at any time, without notice.
+
+**Source availability.** For as long as public versions of chem4all continue to be distributed, the corresponding source code will remain publicly accessible, consistent with the terms of the GPLv3 license.
+
+---
+
 ## Screenshots
 
 On launch, chem4all loads the DECIMER model in the background and shows progress on a splash screen:
