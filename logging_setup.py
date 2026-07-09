@@ -84,9 +84,19 @@ def _ensure_excepthook() -> None:
     previous = sys.excepthook
 
     def _hook(exc_type, exc_value, exc_tb):
-        logging.getLogger("chem4all").critical(
-            "Uncaught exception", exc_info=(exc_type, exc_value, exc_tb)
-        )
+        root = logging.getLogger()
+        file_handler = _find_handler(root, _FILE_HANDLER_NAME)
+        if file_handler is not None:
+            record = logging.LogRecord(
+                name="chem4all",
+                level=logging.CRITICAL,
+                pathname="",
+                lineno=0,
+                msg="Uncaught exception",
+                args=(),
+                exc_info=(exc_type, exc_value, exc_tb),
+            )
+            file_handler.handle(record)
         previous(exc_type, exc_value, exc_tb)
 
     sys.excepthook = _hook

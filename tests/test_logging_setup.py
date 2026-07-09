@@ -100,3 +100,17 @@ def test_uncaught_exception_is_logged_to_file(tmp_path):
     contents = log_files[0].read_text()
     assert "Uncaught exception" in contents
     assert "ValueError: boom" in contents
+
+
+def test_uncaught_exception_prints_to_console_exactly_once(capsys):
+    config = Config()
+    configure_logging(config)
+
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        exc_info = sys.exc_info()
+    sys.excepthook(*exc_info)
+
+    captured = capsys.readouterr()
+    assert captured.err.count("ValueError: boom") == 1
