@@ -251,9 +251,15 @@ from config import Config
 
 _CONSOLE_HANDLER_NAME = "chem4all-console"
 _FILE_HANDLER_NAME = "chem4all-diagnostic-file"
+_DIAGNOSTIC_LOGGER_NAMES = ("pipeline", "gui")
 
 _active_log_dir: str | None = None
 _excepthook_installed = False
+
+
+def _set_diagnostic_logger_levels(level: int) -> None:
+    for name in _DIAGNOSTIC_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(level)
 
 
 @dataclass
@@ -276,11 +282,11 @@ def configure_logging(config: Config) -> LoggingStatus:
             root.removeHandler(existing)
             existing.close()
         _active_log_dir = None
-        root.setLevel(logging.INFO)
+        _set_diagnostic_logger_levels(logging.NOTSET)
         return LoggingStatus(False, None, None)
 
     if existing is not None and _active_log_dir == config.diagnostic_log_dir:
-        root.setLevel(logging.DEBUG)
+        _set_diagnostic_logger_levels(logging.DEBUG)
         return LoggingStatus(True, Path(existing.baseFilename), None)
 
     if existing is not None:
@@ -299,11 +305,11 @@ def configure_logging(config: Config) -> LoggingStatus:
             "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
         ))
         root.addHandler(handler)
-        root.setLevel(logging.DEBUG)
+        _set_diagnostic_logger_levels(logging.DEBUG)
         _active_log_dir = config.diagnostic_log_dir
         return LoggingStatus(True, log_path, None)
     except OSError as exc:
-        root.setLevel(logging.INFO)
+        _set_diagnostic_logger_levels(logging.NOTSET)
         _active_log_dir = None
         return LoggingStatus(False, None, str(exc))
 
@@ -316,8 +322,7 @@ def _ensure_console_handler(root: logging.Logger) -> None:
     handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     root.addHandler(handler)
-    if root.level == logging.NOTSET:
-        root.setLevel(logging.INFO)
+    root.setLevel(logging.INFO)
 
 
 def _ensure_excepthook() -> None:
@@ -327,9 +332,19 @@ def _ensure_excepthook() -> None:
     previous = sys.excepthook
 
     def _hook(exc_type, exc_value, exc_tb):
-        logging.getLogger("chem4all").critical(
-            "Uncaught exception", exc_info=(exc_type, exc_value, exc_tb)
-        )
+        root = logging.getLogger()
+        file_handler = _find_handler(root, _FILE_HANDLER_NAME)
+        if file_handler is not None:
+            record = logging.LogRecord(
+                name="chem4all",
+                level=logging.CRITICAL,
+                pathname="",
+                lineno=0,
+                msg="Uncaught exception",
+                args=(),
+                exc_info=(exc_type, exc_value, exc_tb),
+            )
+            file_handler.handle(record)
         previous(exc_type, exc_value, exc_tb)
 
     sys.excepthook = _hook

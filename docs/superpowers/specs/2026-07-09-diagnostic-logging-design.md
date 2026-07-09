@@ -41,9 +41,15 @@ from config import Config
 
 _CONSOLE_HANDLER_NAME = "chem4all-console"
 _FILE_HANDLER_NAME = "chem4all-diagnostic-file"
+_DIAGNOSTIC_LOGGER_NAMES = ("pipeline", "gui")
 
 _active_log_dir: str | None = None
 _excepthook_installed = False
+
+
+def _set_diagnostic_logger_levels(level: int) -> None:
+    for name in _DIAGNOSTIC_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(level)
 
 
 @dataclass
@@ -66,11 +72,11 @@ def configure_logging(config: Config) -> LoggingStatus:
             root.removeHandler(existing)
             existing.close()
         _active_log_dir = None
-        root.setLevel(logging.INFO)
+        _set_diagnostic_logger_levels(logging.NOTSET)
         return LoggingStatus(False, None, None)
 
     if existing is not None and _active_log_dir == config.diagnostic_log_dir:
-        root.setLevel(logging.DEBUG)
+        _set_diagnostic_logger_levels(logging.DEBUG)
         return LoggingStatus(True, Path(existing.baseFilename), None)
 
     if existing is not None:
@@ -89,11 +95,11 @@ def configure_logging(config: Config) -> LoggingStatus:
             "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
         ))
         root.addHandler(handler)
-        root.setLevel(logging.DEBUG)
+        _set_diagnostic_logger_levels(logging.DEBUG)
         _active_log_dir = config.diagnostic_log_dir
         return LoggingStatus(True, log_path, None)
     except OSError as exc:
-        root.setLevel(logging.INFO)
+        _set_diagnostic_logger_levels(logging.NOTSET)
         _active_log_dir = None
         return LoggingStatus(False, None, str(exc))
 
@@ -106,8 +112,7 @@ def _ensure_console_handler(root: logging.Logger) -> None:
     handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     root.addHandler(handler)
-    if root.level == logging.NOTSET:
-        root.setLevel(logging.INFO)
+    root.setLevel(logging.INFO)
 
 
 def _ensure_excepthook() -> None:
@@ -117,9 +122,19 @@ def _ensure_excepthook() -> None:
     previous = sys.excepthook
 
     def _hook(exc_type, exc_value, exc_tb):
-        logging.getLogger("chem4all").critical(
-            "Uncaught exception", exc_info=(exc_type, exc_value, exc_tb)
-        )
+        root = logging.getLogger()
+        file_handler = _find_handler(root, _FILE_HANDLER_NAME)
+        if file_handler is not None:
+            record = logging.LogRecord(
+                name="chem4all",
+                level=logging.CRITICAL,
+                pathname="",
+                lineno=0,
+                msg="Uncaught exception",
+                args=(),
+                exc_info=(exc_type, exc_value, exc_tb),
+            )
+            file_handler.handle(record)
         previous(exc_type, exc_value, exc_tb)
 
     sys.excepthook = _hook
@@ -134,10 +149,10 @@ def _find_handler(root: logging.Logger, name: str) -> logging.Handler | None:
 ```
 
 Behavior summary:
-- Console handler (INFO, today's format) is installed once and left alone regardless of diagnostic logging state.
-- `sys.excepthook` is installed once, logs uncaught exceptions at CRITICAL with full traceback, then chains to the previous hook so existing crash behavior (stderr dump) is unchanged.
-- Enabling creates a new `chem4all-YYYY-MM-DD_HH-MM-SS.log` file handler at DEBUG and raises the root logger level to DEBUG (console stays at INFO because its handler has its own level).
-- Disabling removes and closes the file handler, drops the root logger level back to INFO.
+- Console handler (INFO, today's format) is installed once and left alone regardless of diagnostic logging state. Root logger is set to INFO so third-party libraries surface warnings/errors without flooding output with DEBUG noise.
+- `sys.excepthook` is installed once; on an uncaught exception it writes a CRITICAL record directly to the active file handler (bypassing the root logger to avoid duplicating the traceback on the console), then chains to the previous hook so existing crash behavior (stderr dump) is unchanged. If no file handler is active, the hook is a no-op beyond chaining.
+- Enabling creates a new `chem4all-YYYY-MM-DD_HH-MM-SS.log` file handler at DEBUG and sets DEBUG on only the `pipeline` and `gui` loggers (via `_set_diagnostic_logger_levels`). The root logger stays at INFO so third-party libraries (TensorFlow, PIL, h5py, etc.) do not flood the log file.
+- Disabling removes and closes the file handler, resets the `pipeline`/`gui` loggers to `NOTSET` (inheriting INFO from root).
 - Changing `diagnostic_log_dir` while already enabled swaps to a new file in the new directory.
 - Re-calling with unchanged enabled state and unchanged directory is a no-op (keeps writing to the same session file) — this matters because Settings can be opened/saved multiple times per session without fragmenting the log.
 - Directory/file creation failures (bad permissions, missing drive) are caught and returned as `LoggingStatus.error` instead of raised, so a bad path can't crash the app.
