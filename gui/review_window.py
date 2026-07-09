@@ -40,12 +40,13 @@ class _RecordRow(QWidget):
             if record.approved_value is not None
             else (record.result_value() or "")
         )
-        self._value_field = QTextEdit(initial_text)
+        self._value_field = QTextEdit()
         self._value_field.setPlaceholderText("Awaiting result…")
         self._value_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         metrics = self._value_field.fontMetrics()
         frame = self._value_field.frameWidth() * 2
         self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
+        self._value_field.setPlainText(initial_text)
         self._value_field.textChanged.connect(self._on_text_changed)
         info.addWidget(self._value_field)
 
