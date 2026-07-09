@@ -111,6 +111,18 @@ class ReviewWindow(QWidget):
         self._status_bar.setWordWrap(True)
         self._layout.addWidget(self._status_bar)
 
+        self._hint_banner = QLabel(
+            "Predicted values are editable — edit a field to override the "
+            "prediction in the exported file. Clearing a field excludes "
+            "that image; use Restore to undo."
+        )
+        self._hint_banner.setWordWrap(True)
+        self._hint_banner.setStyleSheet(
+            "QLabel { background: #f0f0f0; color: #444; "
+            "padding: 6px 10px; border-radius: 4px; }"
+        )
+        self._layout.addWidget(self._hint_banner)
+
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
