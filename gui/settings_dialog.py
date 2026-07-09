@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
@@ -6,9 +7,10 @@ from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QCheckBox,
     QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox,
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel, QLineEdit, QPushButton,
+    QFileDialog, QMessageBox,
 )
-from pathlib import Path
-from config import Config, save_config
+from config import Config, save_config, default_log_dir
+from logging_setup import configure_logging
 
 
 def _dir_size_human(path: Path) -> str:
@@ -21,10 +23,16 @@ def _dir_size_human(path: Path) -> str:
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, config: Config, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        config_path: Path | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.config = Config(**config.__dict__)  # working copy
+        self._config_path = config_path
 
         form = QFormLayout()
 
@@ -78,6 +86,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(self._build_openrouter_section())
         layout.addWidget(self._build_model_info())
+        layout.addWidget(self._build_diagnostic_logging_section())
         layout.addWidget(buttons)
         self.setLayout(layout)
 
@@ -146,6 +155,47 @@ class SettingsDialog(QDialog):
         vbox.addLayout(model_form)
         return box
 
+    def _build_diagnostic_logging_section(self) -> QGroupBox:
+        box = QGroupBox("Diagnostic Logging")
+        vbox = QVBoxLayout(box)
+        vbox.setSpacing(6)
+
+        self._diag_checkbox = QCheckBox("Write diagnostic log files (for troubleshooting)")
+        self._diag_checkbox.setChecked(self.config.diagnostic_logging_enabled)
+        vbox.addWidget(self._diag_checkbox)
+
+        path_row = QHBoxLayout()
+        self._diag_path_field = QLineEdit(self.config.diagnostic_log_dir)
+        path_row.addWidget(self._diag_path_field)
+        self._diag_browse_btn = QPushButton("Browse…")
+        self._diag_browse_btn.clicked.connect(self._browse_diagnostic_log_dir)
+        path_row.addWidget(self._diag_browse_btn)
+        self._diag_open_btn = QPushButton("Open Log Folder")
+        self._diag_open_btn.clicked.connect(self._open_diagnostic_log_dir)
+        path_row.addWidget(self._diag_open_btn)
+        vbox.addLayout(path_row)
+
+        self._diag_checkbox.toggled.connect(self._update_diagnostic_controls_enabled)
+        self._update_diagnostic_controls_enabled(self._diag_checkbox.isChecked())
+
+        return box
+
+    def _update_diagnostic_controls_enabled(self, checked: bool) -> None:
+        self._diag_path_field.setEnabled(checked)
+        self._diag_browse_btn.setEnabled(checked)
+        self._diag_open_btn.setEnabled(checked and Path(self._diag_path_field.text()).exists())
+
+    def _browse_diagnostic_log_dir(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, "Choose Diagnostic Log Folder", self._diag_path_field.text()
+        )
+        if directory:
+            self._diag_path_field.setText(directory)
+            self._update_diagnostic_controls_enabled(self._diag_checkbox.isChecked())
+
+    def _open_diagnostic_log_dir(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(self._diag_path_field.text()))
+
     def _save(self) -> None:
         self.config.openrouter_api_key = self._api_key_field.text().strip()
         self.config.thumbnail_max_size = self._thumb_size.value()
@@ -153,5 +203,13 @@ class SettingsDialog(QDialog):
         self.config.output_mode = "in_place" if self._in_place_radio.isChecked() else "new_file"
         self.config.page_size = self._page_size.value()
         self.config.preload_model = self._preload_model.isChecked()
-        save_config(self.config)
+        self.config.diagnostic_logging_enabled = self._diag_checkbox.isChecked()
+        self.config.diagnostic_log_dir = self._diag_path_field.text().strip() or default_log_dir()
+        save_config(self.config, self._config_path)
+        status = configure_logging(self.config)
+        if status.error:
+            QMessageBox.warning(
+                self, "Diagnostic Logging",
+                f"Could not enable diagnostic logging: {status.error}",
+            )
         self.accept()

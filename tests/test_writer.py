@@ -1,4 +1,5 @@
 import io
+import logging
 from pathlib import Path
 import pytest
 from PIL import Image
@@ -129,3 +130,33 @@ def test_writer_docx_skips_non_chemical(tmp_path):
     )
     out = write([record], src, Config(output_mode="new_file"))
     assert not any(dp.get("descr") == "C1=CC=CC=C1" for dp in _docx_doc_prs(out))
+
+
+def test_writer_pptx_logs_wrote(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="pipeline.writer")
+    src = _make_pptx_with_image(tmp_path)
+    record = _approved_record("slide 1, shape 1")
+    out = write([record], src, Config(output_mode="new_file"))
+    messages = [r.message for r in caplog.records]
+    assert any(m.startswith(f"Wrote {out}") and "1 alt-texts applied" in m for m in messages)
+
+
+def test_writer_pptx_no_wrote_log_when_nothing_approved(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="pipeline.writer")
+    src = _make_pptx_with_image(tmp_path)
+    record = ImageRecord(
+        id="abc", source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"", recognition_bytes=b"",
+        is_chemical=False,
+    )
+    write([record], src, Config(output_mode="new_file"))
+    messages = [r.message for r in caplog.records]
+    assert not any(m.startswith("Wrote") for m in messages)
+
+
+def test_writer_docx_logs_wrote(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG, logger="pipeline.writer")
+    src = _make_docx_with_image(tmp_path)
+    out = write([_approved_record("image 1")], src, Config(output_mode="new_file"))
+    messages = [r.message for r in caplog.records]
+    assert any(m.startswith(f"Wrote {out}") and "1 alt-texts applied" in m for m in messages)

@@ -4,6 +4,22 @@ A Python tool that makes chemistry course handouts and presentations accessible 
 
 chem4all processes PPTX and DOCX files, extracts images, identifies chemical structures using [DECIMER Image Transformer](https://github.com/Kohulan/DECIMER-Image_Transformer), and writes approved alt-text back to the original document. For each image the instructor can choose to produce a SMILES string, an IUPAC name, a common name, or a plain-English description — useful for non-chemical images like cell membranes and biochemical pathway diagrams.
 
+---
+
+## ⚠️ Prototype software — please read before use
+
+**chem4all is prototype/experimental software.** It is provided for testing, evaluation, and research purposes only, and is **not** intended for production, clinical, safety-critical, or other high-stakes use. Do not depend on it as the sole means of producing accessible course materials without independent review of the output by a qualified person — this is especially important for AI-generated chemical structure identifications (SMILES, IUPAC/common names) and image descriptions, which may be inaccurate or misleading if used unreviewed.
+
+**No warranty.** This software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the implied warranties of **merchantability**, **fitness for a particular purpose**, and **noninfringement**. The maintainer(s) make no representation or guarantee regarding the accuracy, reliability, or completeness of chem4all or any output it generates.
+
+**No liability.** To the maximum extent permitted by law, the maintainer(s) of this project shall not be held liable for any claim, damages, or other liability — whether in an action of contract, tort, or otherwise — arising from, out of, or in connection with the software or its use. You use chem4all entirely at your own risk. (These terms reinforce, and do not replace, the warranty and liability disclaimers already present in the [GPLv3 license](LICENSE), sections 15–16.)
+
+**Limited support and maintenance.** This project is maintained on a best-effort, volunteer basis. No guarantee is made about the duration of support for any publicly released version, the frequency of updates, or the resolution of bugs or feature requests. Maintenance may be reduced or may end at any time, without notice.
+
+**Source availability.** For as long as public versions of chem4all continue to be distributed, the corresponding source code will remain publicly accessible, consistent with the terms of the GPLv3 license.
+
+---
+
 ## Screenshots
 
 On launch, chem4all loads the DECIMER model in the background and shows progress on a splash screen:
@@ -14,9 +30,21 @@ Once the model is loaded, the main screen reports the load time and lets you ope
 
 <img src="docs/images/main-screen.png" alt="chem4all main screen, showing the Open File and Settings buttons once the DECIMER model has loaded" width="500">
 
-The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk:
+If the DECIMER model hasn't been downloaded yet, the main screen instead shows a banner explaining that chemical structure recognition won't work until it's installed, with a button to download it (~600 MB):
 
-<img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, and DECIMER model file locations" width="500">
+<img src="docs/images/model-missing-banner.png" alt="chem4all main screen showing a banner warning that the DECIMER model is not downloaded, with a Download Model button" width="500">
+
+Clicking **Download Model** starts the download in place, showing live progress and transfer size while the rest of the window stays visible:
+
+<img src="docs/images/model-download-progress.png" alt="chem4all main screen showing the DECIMER model download in progress, with a progress bar and bytes downloaded" width="500">
+
+Once the download finishes, chem4all offers to restart so the model is loaded into memory right away:
+
+<img src="docs/images/model-restart-prompt.png" alt="chem4all dialog asking whether to restart the app now that the DECIMER model has finished downloading, with No and Yes buttons" width="350">
+
+The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk. It also has a **Diagnostic Logging** section, off by default, that writes a timestamped log file per session to a folder you choose (defaults to `~/Desktop/chem4all-logs/`). When enabled, it captures document opens, per-image extraction and DECIMER recognition, OpenRouter calls (IUPAC/common name lookup, image descriptions), DECIMER model load timing, and file writes — with timing and results for each step. This is the file to enable and attach when reporting a bug: it gives a developer a step-by-step trace of what chem4all did without needing you to reproduce the issue live:
+
+<img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, DECIMER model file locations, and the Diagnostic Logging section with its enable checkbox and log folder path" width="500">
 
 After a file is opened and its images extracted, the Select Images screen lists every image found, each with a checkbox and a choice of SMILES, IUPAC name, or common name output:
 
@@ -171,6 +199,8 @@ Settings are stored in `~/.chem4all/config.json` and created with defaults on fi
 | `output_mode` | `"new_file"` | `"new_file"` creates a new file; `"in_place"` overwrites the original |
 | `page_size` | `5` | Number of images shown per page in the review UI |
 | `openrouter_api_key` | `""` | OpenRouter API key (overridden by the `OPENROUTER_API_KEY` environment variable) |
+| `diagnostic_logging_enabled` | `false` | Write a diagnostic log file per session, for troubleshooting |
+| `diagnostic_log_dir` | `~/Desktop/chem4all-logs` | Folder where diagnostic log files are written |
 
 ## Running tests
 

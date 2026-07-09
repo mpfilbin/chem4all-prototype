@@ -1,17 +1,20 @@
 from __future__ import annotations
 from pathlib import Path
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QFrame, QProgressBar,
 )
 from PyQt6.QtCore import Qt
-from config import Config
+from config import Config, save_config
 
 
 class FilePickerWindow(QWidget):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, config_path: Path | None = None) -> None:
         super().__init__()
         self._config = config
+        self._config_path = config_path
+        self._download_worker = None
         self.setWindowTitle("chem4all")
         self.setMinimumWidth(440)
 
@@ -79,9 +82,11 @@ class FilePickerWindow(QWidget):
 
         self._model_status_label = QLabel(
             "⚠  DECIMER model not downloaded. "
-            "Chemical structure recognition will not work until the model is installed."
+            "Chemical structure recognition will not work until the model is installed. "
+            "Click the button below to download it."
         )
         self._model_status_label.setWordWrap(True)
+        self._model_status_label.setStyleSheet("QLabel { color: #664d03; }")
         vbox.addWidget(self._model_status_label)
 
         self._progress_bar = QProgressBar()
@@ -92,14 +97,42 @@ class FilePickerWindow(QWidget):
 
         self._bytes_label = QLabel()
         self._bytes_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._bytes_label.setStyleSheet("QLabel { color: #664d03; }")
         self._bytes_label.hide()
         vbox.addWidget(self._bytes_label)
 
         self._download_btn = QPushButton("Download Model  (~600 MB)")
+        self._download_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._download_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffce3a, stop:1 #ffc107);"
+            "  color: #212529; border: 1px solid #d39e00; border-bottom: 2px solid #b38600;"
+            "  border-radius: 6px; padding: 8px 16px; font-weight: 600;"
+            "}"
+            "QPushButton:hover {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffd65c, stop:1 #ffcd39);"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #e0a800; border: 1px solid #b38600; border-bottom: 1px solid #b38600;"
+            "  padding-top: 9px; padding-bottom: 7px;"
+            "}"
+            "QPushButton:disabled { background: #ffe69c; color: #8a6d1f; border: 1px solid #ffe69c; }"
+        )
         self._download_btn.clicked.connect(self._start_download)
         vbox.addWidget(self._download_btn)
 
         return banner
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self._download_worker is not None and self._download_worker.isRunning():
+            QMessageBox.information(
+                self,
+                "Download in Progress",
+                "Please wait for the DECIMER model download to finish before closing chem4all.",
+            )
+            event.ignore()
+            return
+        super().closeEvent(event)
 
     def _start_download(self) -> None:
         from gui.model_manager import ModelDownloadWorker
@@ -128,16 +161,38 @@ class FilePickerWindow(QWidget):
             self._bytes_label.clear()
 
     def _on_download_finished(self) -> None:
+        self._cleanup_download_worker()
         self._model_banner.hide()
         self._open_btn.setEnabled(True)
 
+        reply = QMessageBox.question(
+            self,
+            "Model Downloaded",
+            "The DECIMER model has finished downloading. "
+            "Restart chem4all now to load it into memory?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._config.preload_model = True
+            save_config(self._config, self._config_path)
+            from gui.app import restart_app
+            restart_app()
+
     def _on_download_error(self, msg: str) -> None:
+        self._cleanup_download_worker()
         self._model_status_label.setText(f"⚠  Download failed: {msg}")
         self._progress_bar.hide()
         self._bytes_label.hide()
         self._download_btn.setText("Retry Download")
         self._download_btn.setEnabled(True)
         self._open_btn.setEnabled(True)
+
+    def _cleanup_download_worker(self) -> None:
+        if self._download_worker is None:
+            return
+        self._download_worker.wait()
+        self._download_worker = None
 
     def _open_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -149,7 +204,7 @@ class FilePickerWindow(QWidget):
 
     def _open_settings(self) -> None:
         from gui.settings_dialog import SettingsDialog
-        dlg = SettingsDialog(self._config, self)
+        dlg = SettingsDialog(self._config, self._config_path, self)
         if dlg.exec():
             self._config = dlg.config
 

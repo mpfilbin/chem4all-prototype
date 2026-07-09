@@ -89,6 +89,7 @@ def _extract_pptx(
         for shape in slide.shapes
         if _is_picture_shape(shape)
     )
+    log.debug("Opened %s (%d images found)", file_path.name, total)
     records: list[ImageRecord] = []
     extracted = 0
     for slide_idx, slide in enumerate(prs.slides, start=1):
@@ -103,6 +104,7 @@ def _extract_pptx(
                     thumbnail_bytes=_downscale(raw, config.thumbnail_max_size),
                     recognition_bytes=_downscale(raw, config.recognition_max_size),
                 ))
+                log.debug("Extracted %s", records[-1].source_ref)
             except (OSError, AttributeError, ValueError) as exc:
                 log.warning("Could not extract image slide %d shape %d: %s", slide_idx, shape_idx, exc)
             extracted += 1
@@ -121,6 +123,7 @@ def _extract_docx(
         rid for rid, rel in doc.part.rels.items() if "image" in rel.reltype
     ]
     total = len(image_rids)
+    log.debug("Opened %s (%d images found)", file_path.name, total)
     records: list[ImageRecord] = []
     seen: set[str] = set()
     image_idx = 0
@@ -138,6 +141,7 @@ def _extract_docx(
                 thumbnail_bytes=_downscale(raw, config.thumbnail_max_size),
                 recognition_bytes=_downscale(raw, config.recognition_max_size),
             ))
+            log.debug("Extracted %s", records[-1].source_ref)
         except (OSError, AttributeError, ValueError) as exc:
             log.warning("Could not extract image %d (rid=%s): %s", image_idx, rid, exc)
         if on_progress:

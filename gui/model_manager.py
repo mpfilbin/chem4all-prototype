@@ -1,8 +1,11 @@
 from __future__ import annotations
+import logging
 import zipfile
 from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
+
+log = logging.getLogger(__name__)
 
 MODEL_URLS: dict[str, str] = {
     "DECIMER": "https://zenodo.org/record/8300489/files/models.zip",
@@ -35,14 +38,20 @@ class ModelPreloadWorker(QThread):
 
     def run(self) -> None:
         import time
+        from pipeline.recognizer import mark_decimer_loaded
+        log.debug("Loading DECIMER model...")
         t0 = time.perf_counter()
         try:
             import numpy as np
             from DECIMER import predict_SMILES
             # Warm-up: force TF graph tracing now so the first real prediction is instant.
             predict_SMILES(np.zeros((64, 64, 3), dtype=np.uint8))
-            self.finished.emit(time.perf_counter() - t0)
+            elapsed = time.perf_counter() - t0
+            log.debug("DECIMER model loaded in %.2fs", elapsed)
+            mark_decimer_loaded()
+            self.finished.emit(elapsed)
         except Exception as exc:
+            log.warning("DECIMER model failed to load: %s", exc)
             self.error.emit(str(exc))
 
 

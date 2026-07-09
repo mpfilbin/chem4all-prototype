@@ -1,9 +1,13 @@
 from __future__ import annotations
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
 _DEFAULT_PATH = Path.home() / ".chem4all" / "config.json"
+
+
+def default_log_dir() -> str:
+    return str(Path.home() / "Desktop" / "chem4all-logs")
 
 
 @dataclass
@@ -14,6 +18,8 @@ class Config:
     output_mode: str = "new_file"
     page_size: int = 5
     preload_model: bool = False
+    diagnostic_logging_enabled: bool = False
+    diagnostic_log_dir: str = field(default_factory=default_log_dir)
 
 
 def load_config(path: Path | None = None) -> Config:
