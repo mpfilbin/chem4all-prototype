@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QLineEdit, QTextEdit,
+    QPushButton, QLabel, QTextEdit,
     QMessageBox, QScrollArea,
 )
 from config import Config
@@ -24,6 +24,7 @@ class _RecordRow(QWidget):
     def __init__(self, record: ImageRecord, parent=None):
         super().__init__(parent)
         self._record = record
+        self._edited = False
 
         layout = QHBoxLayout()
 
@@ -34,30 +35,56 @@ class _RecordRow(QWidget):
         info.addWidget(QLabel(record.source_ref))
 
         info.addWidget(QLabel(_TYPE_LABELS.get(record.prediction_type, "Predicted SMILES:")))
-        self._result_field = QTextEdit(record.result_value() or "")
-        self._result_field.setReadOnly(True)
-        self._result_field.setPlaceholderText("Awaiting result…")
-        self._result_field.setFixedHeight(64)
-        self._result_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
-        info.addWidget(self._result_field)
+        initial_text = (
+            record.approved_value
+            if record.approved_value is not None
+            else (record.result_value() or "")
+        )
+        self._value_field = QTextEdit(initial_text)
+        self._value_field.setPlaceholderText("Awaiting result…")
+        self._value_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        metrics = self._value_field.fontMetrics()
+        frame = self._value_field.frameWidth() * 2
+        self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
+        self._value_field.textChanged.connect(self._on_text_changed)
+        info.addWidget(self._value_field)
 
-        info.addWidget(QLabel("Custom override:"))
-        self._override_field = QLineEdit()
-        self._override_field.setPlaceholderText("Leave blank to use the predicted value")
-        info.addWidget(self._override_field)
+        self._restore_btn = QPushButton("↺ Restore predicted value")
+        self._restore_btn.clicked.connect(self._restore_predicted)
+        info.addWidget(self._restore_btn)
+        self._update_restore_visibility()
 
         layout.addLayout(info)
         self.setLayout(layout)
 
+    def _set_field_text(self, text: str) -> None:
+        self._value_field.blockSignals(True)
+        self._value_field.setPlainText(text)
+        self._value_field.blockSignals(False)
+        self._update_restore_visibility()
+
+    def _on_text_changed(self) -> None:
+        self._edited = True
+        self._update_restore_visibility()
+
+    def _update_restore_visibility(self) -> None:
+        predicted = self._record.result_value() or ""
+        self._restore_btn.setVisible(self._value_field.toPlainText() != predicted)
+
+    def _restore_predicted(self) -> None:
+        self._set_field_text(self._record.result_value() or "")
+        self._edited = False
+
     def update_record(self, record: ImageRecord) -> None:
         self._record = record
         self._thumb.update_record(record)
-        self._result_field.setPlainText(record.result_value() or "")
+        if not self._edited:
+            self._set_field_text(record.result_value() or "")
 
     def apply_to_record(self) -> None:
-        override = self._override_field.text().strip()
-        self._record.approved_value = override if override else self._record.result_value()
-        self._record.is_chemical = bool(self._record.approved_value)
+        value = self._value_field.toPlainText().strip()
+        self._record.approved_value = value
+        self._record.is_chemical = bool(value)
 
 
 class ReviewWindow(QWidget):
