@@ -13,6 +13,8 @@ def _reset_logging_state():
     original_handlers = list(root.handlers)
     original_level = root.level
     original_excepthook = sys.excepthook
+    original_pipeline_level = logging.getLogger("pipeline").level
+    original_gui_level = logging.getLogger("gui").level
     logging_setup._active_log_dir = None
     logging_setup._excepthook_installed = False
     yield
@@ -22,6 +24,8 @@ def _reset_logging_state():
         root.addHandler(h)
     root.setLevel(original_level)
     sys.excepthook = original_excepthook
+    logging.getLogger("pipeline").setLevel(original_pipeline_level)
+    logging.getLogger("gui").setLevel(original_gui_level)
 
 
 def test_enabling_creates_one_log_file(tmp_path):
@@ -114,3 +118,25 @@ def test_uncaught_exception_prints_to_console_exactly_once(capsys):
 
     captured = capsys.readouterr()
     assert captured.err.count("ValueError: boom") == 1
+
+
+def test_enabling_sets_debug_only_on_chem4all_loggers_not_root_or_third_party(tmp_path):
+    config = Config(diagnostic_logging_enabled=True, diagnostic_log_dir=str(tmp_path))
+    configure_logging(config)
+
+    assert logging.getLogger("pipeline").level == logging.DEBUG
+    assert logging.getLogger("gui").level == logging.DEBUG
+    assert logging.getLogger().level == logging.INFO
+    assert logging.getLogger("some_third_party_lib").isEnabledFor(logging.DEBUG) is False
+    assert logging.getLogger("pipeline.recognizer").isEnabledFor(logging.DEBUG) is True
+
+
+def test_disabling_resets_chem4all_logger_levels(tmp_path):
+    config = Config(diagnostic_logging_enabled=True, diagnostic_log_dir=str(tmp_path))
+    configure_logging(config)
+
+    config.diagnostic_logging_enabled = False
+    configure_logging(config)
+
+    assert logging.getLogger("pipeline").level == logging.NOTSET
+    assert logging.getLogger("gui").level == logging.NOTSET
