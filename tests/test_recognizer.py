@@ -98,3 +98,16 @@ def test_run_decimer_logs_warning_on_load_failure(monkeypatch, caplog, red_png_b
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any("DECIMER model failed to load" in r.message for r in warnings)
     assert recognizer_module._decimer_loaded is False
+
+
+def test_recognize_logs_recognizing_and_result(monkeypatch, caplog):
+    monkeypatch.setattr(
+        "pipeline.recognizer._run_decimer",
+        lambda img_bytes: ("C1=CC=CC=C1", 0.95),
+    )
+    caplog.set_level(logging.DEBUG, logger="pipeline.recognizer")
+    records = [_make_record()]
+    recognize(records, Config())
+    messages = [r.message for r in caplog.records]
+    assert "Recognizing slide 1, shape 1..." in messages
+    assert any(m.startswith("slide 1, shape 1 -> SMILES 'C1=CC=CC=C1'") for m in messages)

@@ -46,7 +46,10 @@ def _run_decimer(img_bytes: bytes) -> tuple[str | None, float | None]:
 def recognize(records: list[ImageRecord], config: Config) -> list[ImageRecord]:
     for record in records:
         try:
+            log.debug("Recognizing %s...", record.source_ref)
+            t0 = time.perf_counter()
             smiles, confidence = _run_decimer(record.recognition_bytes)
+            log.debug("%s -> SMILES '%s' (%.2fs)", record.source_ref, smiles, time.perf_counter() - t0)
             record.predicted_smiles = smiles
             record.confidence = confidence
         except Exception as exc:
