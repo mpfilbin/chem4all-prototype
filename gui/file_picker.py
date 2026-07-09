@@ -79,7 +79,8 @@ class FilePickerWindow(QWidget):
 
         self._model_status_label = QLabel(
             "⚠  DECIMER model not downloaded. "
-            "Chemical structure recognition will not work until the model is installed."
+            "Chemical structure recognition will not work until the model is installed. "
+            "Click the button below to download it."
         )
         self._model_status_label.setWordWrap(True)
         self._model_status_label.setStyleSheet("QLabel { color: #664d03; }")
@@ -98,14 +99,21 @@ class FilePickerWindow(QWidget):
         vbox.addWidget(self._bytes_label)
 
         self._download_btn = QPushButton("Download Model  (~600 MB)")
+        self._download_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._download_btn.setStyleSheet(
             "QPushButton {"
-            "  background: #ffc107; color: #212529; border: 1px solid #e0a800;"
-            "  border-radius: 4px; padding: 6px 12px; font-weight: 600;"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffce3a, stop:1 #ffc107);"
+            "  color: #212529; border: 1px solid #d39e00; border-bottom: 2px solid #b38600;"
+            "  border-radius: 6px; padding: 8px 16px; font-weight: 600;"
             "}"
-            "QPushButton:hover { background: #e0a800; }"
-            "QPushButton:pressed { background: #c69500; }"
-            "QPushButton:disabled { background: #ffe69c; color: #8a6d1f; }"
+            "QPushButton:hover {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffd65c, stop:1 #ffcd39);"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #e0a800; border: 1px solid #b38600; border-bottom: 1px solid #b38600;"
+            "  padding-top: 9px; padding-bottom: 7px;"
+            "}"
+            "QPushButton:disabled { background: #ffe69c; color: #8a6d1f; border: 1px solid #ffe69c; }"
         )
         self._download_btn.clicked.connect(self._start_download)
         vbox.addWidget(self._download_btn)
