@@ -115,7 +115,7 @@ def run(self) -> None:
 
 Each new debug line sits inside the `try` block that already surrounds its corresponding call, immediately before/after it — no new `try/except` blocks are introduced, only new lines inside existing ones.
 
-## Section 4 — Write (`pipeline/writer.py`)
+## Section 3 — Write (`pipeline/writer.py`)
 
 `_write_pptx` and `_write_docx` both already compute `approved` (the list of records actually being written) before saving. Add one line after each successful save, using the count already in scope:
 
