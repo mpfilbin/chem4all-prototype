@@ -2,6 +2,18 @@ from __future__ import annotations
 from config import Config
 
 
+def restart_app() -> None:
+    """Re-exec the current process so a freshly downloaded model gets preloaded on startup."""
+    import os
+    import sys
+
+    if getattr(sys, "frozen", False):
+        args = [sys.executable, *sys.argv[1:]]
+    else:
+        args = [sys.executable, *sys.argv]
+    os.execv(sys.executable, args)
+
+
 def run_app(config: Config) -> object:
     from PyQt6.QtCore import QTimer
     from gui.file_picker import FilePickerWindow

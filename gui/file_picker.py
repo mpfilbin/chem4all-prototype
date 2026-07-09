@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QLabel, QFileDialog, QMessageBox, QFrame, QProgressBar,
 )
 from PyQt6.QtCore import Qt
-from config import Config
+from config import Config, save_config
 
 
 class FilePickerWindow(QWidget):
@@ -149,6 +149,20 @@ class FilePickerWindow(QWidget):
     def _on_download_finished(self) -> None:
         self._model_banner.hide()
         self._open_btn.setEnabled(True)
+
+        reply = QMessageBox.question(
+            self,
+            "Model Downloaded",
+            "The DECIMER model has finished downloading. "
+            "Restart chem4all now to load it into memory?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._config.preload_model = True
+            save_config(self._config)
+            from gui.app import restart_app
+            restart_app()
 
     def _on_download_error(self, msg: str) -> None:
         self._model_status_label.setText(f"⚠  Download failed: {msg}")
