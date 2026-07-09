@@ -1,8 +1,21 @@
 from __future__ import annotations
+from pathlib import Path
 from config import Config
 
 
-def run_app(config: Config) -> object:
+def restart_app() -> None:
+    """Re-exec the current process so a freshly downloaded model gets preloaded on startup."""
+    import os
+    import sys
+
+    if getattr(sys, "frozen", False):
+        args = [sys.executable, *sys.argv[1:]]
+    else:
+        args = [sys.executable, *sys.argv]
+    os.execv(sys.executable, args)
+
+
+def run_app(config: Config, config_path: Path | None = None) -> object:
     from PyQt6.QtCore import QTimer
     from gui.file_picker import FilePickerWindow
     from gui.splash import make_splash, splash_message
@@ -11,7 +24,7 @@ def run_app(config: Config) -> object:
     splash = make_splash()
     splash.show()
 
-    window = FilePickerWindow(config)
+    window = FilePickerWindow(config, config_path)
 
     def _finish() -> None:
         splash.finish(window)

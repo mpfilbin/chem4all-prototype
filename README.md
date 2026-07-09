@@ -14,6 +14,18 @@ Once the model is loaded, the main screen reports the load time and lets you ope
 
 <img src="docs/images/main-screen.png" alt="chem4all main screen, showing the Open File and Settings buttons once the DECIMER model has loaded" width="500">
 
+If the DECIMER model hasn't been downloaded yet, the main screen instead shows a banner explaining that chemical structure recognition won't work until it's installed, with a button to download it (~600 MB):
+
+<img src="docs/images/model-missing-banner.png" alt="chem4all main screen showing a banner warning that the DECIMER model is not downloaded, with a Download Model button" width="500">
+
+Clicking **Download Model** starts the download in place, showing live progress and transfer size while the rest of the window stays visible:
+
+<img src="docs/images/model-download-progress.png" alt="chem4all main screen showing the DECIMER model download in progress, with a progress bar and bytes downloaded" width="500">
+
+Once the download finishes, chem4all offers to restart so the model is loaded into memory right away:
+
+<img src="docs/images/model-restart-prompt.png" alt="chem4all dialog asking whether to restart the app now that the DECIMER model has finished downloading, with No and Yes buttons" width="350">
+
 The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk:
 
 <img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, and DECIMER model file locations" width="500">

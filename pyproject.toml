@@ -17,6 +17,9 @@ dependencies = [
     "requests",
 ]
 
+[project.optional-dependencies]
+test = ["pytest"]
+
 [project.scripts]
 chem4all = "main:main"
 

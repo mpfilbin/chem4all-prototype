@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
@@ -7,7 +8,6 @@ from PyQt6.QtWidgets import (
     QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox,
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel, QLineEdit, QPushButton,
 )
-from pathlib import Path
 from config import Config, save_config
 
 
@@ -21,10 +21,16 @@ def _dir_size_human(path: Path) -> str:
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, config: Config, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        config_path: Path | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.config = Config(**config.__dict__)  # working copy
+        self._config_path = config_path
 
         form = QFormLayout()
 
@@ -153,5 +159,5 @@ class SettingsDialog(QDialog):
         self.config.output_mode = "in_place" if self._in_place_radio.isChecked() else "new_file"
         self.config.page_size = self._page_size.value()
         self.config.preload_model = self._preload_model.isChecked()
-        save_config(self.config)
+        save_config(self.config, self._config_path)
         self.accept()

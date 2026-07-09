@@ -32,7 +32,7 @@ def main() -> None:
         config.output_mode = "in_place"
 
     if args.file is None:
-        _launch_gui(config)
+        _launch_gui(config, args.config)
         return
 
     file_path = args.file
@@ -62,11 +62,11 @@ def main() -> None:
     print(f"Accessible file written to {out}")
 
 
-def _launch_gui(config) -> None:
+def _launch_gui(config, config_path: Path | None = None) -> None:
     from PyQt6.QtWidgets import QApplication
     from gui.app import run_app
     app = QApplication(sys.argv)
-    _window = run_app(config)  # noqa: F841 — keeps window alive during event loop
+    _window = run_app(config, config_path)  # noqa: F841 — keeps window alive during event loop
     sys.exit(app.exec())
 
 
