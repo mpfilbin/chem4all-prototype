@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QFrame, QProgressBar,
@@ -9,9 +10,11 @@ from config import Config, save_config
 
 
 class FilePickerWindow(QWidget):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, config_path: Path | None = None) -> None:
         super().__init__()
         self._config = config
+        self._config_path = config_path
+        self._download_worker = None
         self.setWindowTitle("chem4all")
         self.setMinimumWidth(440)
 
@@ -120,6 +123,17 @@ class FilePickerWindow(QWidget):
 
         return banner
 
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self._download_worker is not None and self._download_worker.isRunning():
+            QMessageBox.information(
+                self,
+                "Download in Progress",
+                "Please wait for the DECIMER model download to finish before closing chem4all.",
+            )
+            event.ignore()
+            return
+        super().closeEvent(event)
+
     def _start_download(self) -> None:
         from gui.model_manager import ModelDownloadWorker
         self._download_btn.setEnabled(False)
@@ -147,6 +161,7 @@ class FilePickerWindow(QWidget):
             self._bytes_label.clear()
 
     def _on_download_finished(self) -> None:
+        self._cleanup_download_worker()
         self._model_banner.hide()
         self._open_btn.setEnabled(True)
 
@@ -160,17 +175,24 @@ class FilePickerWindow(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._config.preload_model = True
-            save_config(self._config)
+            save_config(self._config, self._config_path)
             from gui.app import restart_app
             restart_app()
 
     def _on_download_error(self, msg: str) -> None:
+        self._cleanup_download_worker()
         self._model_status_label.setText(f"⚠  Download failed: {msg}")
         self._progress_bar.hide()
         self._bytes_label.hide()
         self._download_btn.setText("Retry Download")
         self._download_btn.setEnabled(True)
         self._open_btn.setEnabled(True)
+
+    def _cleanup_download_worker(self) -> None:
+        if self._download_worker is None:
+            return
+        self._download_worker.wait()
+        self._download_worker = None
 
     def _open_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -182,7 +204,7 @@ class FilePickerWindow(QWidget):
 
     def _open_settings(self) -> None:
         from gui.settings_dialog import SettingsDialog
-        dlg = SettingsDialog(self._config, self)
+        dlg = SettingsDialog(self._config, self._config_path, self)
         if dlg.exec():
             self._config = dlg.config
 

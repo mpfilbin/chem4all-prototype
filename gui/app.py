@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from config import Config
 
 
@@ -14,7 +15,7 @@ def restart_app() -> None:
     os.execv(sys.executable, args)
 
 
-def run_app(config: Config) -> object:
+def run_app(config: Config, config_path: Path | None = None) -> object:
     from PyQt6.QtCore import QTimer
     from gui.file_picker import FilePickerWindow
     from gui.splash import make_splash, splash_message
@@ -23,7 +24,7 @@ def run_app(config: Config) -> object:
     splash = make_splash()
     splash.show()
 
-    window = FilePickerWindow(config)
+    window = FilePickerWindow(config, config_path)
 
     def _finish() -> None:
         splash.finish(window)
