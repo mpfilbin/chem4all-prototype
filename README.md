@@ -26,9 +26,9 @@ Once the download finishes, chem4all offers to restart so the model is loaded in
 
 <img src="docs/images/model-restart-prompt.png" alt="chem4all dialog asking whether to restart the app now that the DECIMER model has finished downloading, with No and Yes buttons" width="350">
 
-The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk:
+The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk. It also has a **Diagnostic Logging** section, off by default, that writes a timestamped log file per session to a folder you choose (defaults to `~/Desktop/chem4all-logs/`). When enabled, it captures document opens, per-image extraction and DECIMER recognition, OpenRouter calls (IUPAC/common name lookup, image descriptions), DECIMER model load timing, and file writes — with timing and results for each step. This is the file to enable and attach when reporting a bug: it gives a developer a step-by-step trace of what chem4all did without needing you to reproduce the issue live:
 
-<img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, and DECIMER model file locations" width="500">
+<img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, DECIMER model file locations, and the Diagnostic Logging section with its enable checkbox and log folder path" width="500">
 
 After a file is opened and its images extracted, the Select Images screen lists every image found, each with a checkbox and a choice of SMILES, IUPAC name, or common name output:
 
@@ -183,6 +183,8 @@ Settings are stored in `~/.chem4all/config.json` and created with defaults on fi
 | `output_mode` | `"new_file"` | `"new_file"` creates a new file; `"in_place"` overwrites the original |
 | `page_size` | `5` | Number of images shown per page in the review UI |
 | `openrouter_api_key` | `""` | OpenRouter API key (overridden by the `OPENROUTER_API_KEY` environment variable) |
+| `diagnostic_logging_enabled` | `false` | Write a diagnostic log file per session, for troubleshooting |
+| `diagnostic_log_dir` | `~/Desktop/chem4all-logs` | Folder where diagnostic log files are written |
 
 ## Running tests
 

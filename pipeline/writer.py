@@ -58,6 +58,7 @@ def _write_pptx(records: list[ImageRecord], dest: Path) -> None:
         except Exception as exc:
             log.warning("Could not set alt-text for %s: %s", record.source_ref, exc)
     prs.save(str(dest))
+    log.debug("Wrote %s (%d alt-texts applied)", dest, len(approved))
 
 
 def _write_docx(records: list[ImageRecord], dest: Path) -> None:
@@ -100,3 +101,4 @@ def _write_docx(records: list[ImageRecord], dest: Path) -> None:
         except Exception as exc:
             log.warning("Could not set alt-text for %s: %s", record.source_ref, exc)
     doc.save(str(dest))
+    log.debug("Wrote %s (%d alt-texts applied)", dest, len(approved))

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pytest
-from config import Config, load_config, save_config
+from config import Config, load_config, save_config, default_log_dir
 
 
 def test_load_config_creates_defaults(tmp_path):
@@ -43,3 +43,22 @@ def test_load_config_ignores_unknown_keys(tmp_path):
     config = load_config(cfg_path)
     assert config.page_size == 7
     # Should not raise even though "deprecated_key" is not a Config field
+
+
+def test_load_config_diagnostic_logging_defaults(tmp_path):
+    config = load_config(tmp_path / "config.json")
+    assert config.diagnostic_logging_enabled is False
+    assert config.diagnostic_log_dir == default_log_dir()
+
+
+def test_save_config_diagnostic_logging_roundtrip(tmp_path):
+    cfg_path = tmp_path / "config.json"
+    original = Config(diagnostic_logging_enabled=True, diagnostic_log_dir="/custom/log/dir")
+    save_config(original, cfg_path)
+    restored = load_config(cfg_path)
+    assert restored.diagnostic_logging_enabled is True
+    assert restored.diagnostic_log_dir == "/custom/log/dir"
+
+
+def test_default_log_dir_is_desktop_subfolder():
+    assert default_log_dir() == str(Path.home() / "Desktop" / "chem4all-logs")

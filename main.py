@@ -1,10 +1,7 @@
 from __future__ import annotations
 import argparse
-import logging
 import sys
 from pathlib import Path
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 def main() -> None:
@@ -28,6 +25,8 @@ def main() -> None:
 
     from config import load_config
     config = load_config(args.config)
+    from logging_setup import configure_logging
+    configure_logging(config)
     if args.in_place:
         config.output_mode = "in_place"
 

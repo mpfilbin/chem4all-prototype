@@ -1,18 +1,43 @@
 from __future__ import annotations
 import logging
+import time
 from config import Config
 from models.image_record import ImageRecord
 
 log = logging.getLogger(__name__)
 
+_decimer_loaded = False
+
+
+def mark_decimer_loaded() -> None:
+    global _decimer_loaded
+    _decimer_loaded = True
+
 
 def _run_decimer(img_bytes: bytes) -> tuple[str | None, float | None]:
-    from DECIMER import predict_SMILES  # deferred import; heavy model load
+    global _decimer_loaded
     import io
     import numpy as np
     from PIL import Image
     img_array = np.array(Image.open(io.BytesIO(img_bytes)).convert("RGB"))
-    smiles = predict_SMILES(img_array)
+
+    first_load = not _decimer_loaded
+    if first_load:
+        log.debug("Loading DECIMER model...")
+        t0 = time.perf_counter()
+
+    try:
+        from DECIMER import predict_SMILES  # deferred import; heavy model load
+        smiles = predict_SMILES(img_array)
+    except Exception as exc:
+        if first_load:
+            log.warning("DECIMER model failed to load: %s", exc)
+        raise
+
+    if first_load:
+        log.debug("DECIMER model loaded in %.2fs", time.perf_counter() - t0)
+        _decimer_loaded = True
+
     # DECIMER does not expose a confidence score in the public API;
     # return 1.0 as a sentinel so auto-filter threshold comparisons still work.
     return (smiles if smiles else None, 1.0 if smiles else 0.0)
@@ -21,7 +46,10 @@ def _run_decimer(img_bytes: bytes) -> tuple[str | None, float | None]:
 def recognize(records: list[ImageRecord], config: Config) -> list[ImageRecord]:
     for record in records:
         try:
+            log.debug("Recognizing %s...", record.source_ref)
+            t0 = time.perf_counter()
             smiles, confidence = _run_decimer(record.recognition_bytes)
+            log.debug("%s -> SMILES '%s' (%.2fs)", record.source_ref, smiles, time.perf_counter() - t0)
             record.predicted_smiles = smiles
             record.confidence = confidence
         except Exception as exc:

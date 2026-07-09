@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import os
+import time
 from PyQt6.QtCore import QThread, pyqtSignal
 from config import Config
 from models.image_record import ImageRecord
@@ -31,7 +32,10 @@ class RecognizerWorker(QThread):
             if record.prediction_type == "description":
                 self.status.emit(f"Describing {record.source_ref}  ({i + 1} of {total})…")
                 try:
+                    log.debug("Describing %s...", record.source_ref)
+                    t0 = time.perf_counter()
                     record.description = describe_image(record.recognition_bytes, api_key)
+                    log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.description, time.perf_counter() - t0)
                 except Exception as exc:
                     log.warning("Description failed for %s: %s", record.source_ref, exc)
                     self.error.emit(f"Could not describe {record.source_ref}: {exc}")
@@ -43,14 +47,20 @@ class RecognizerWorker(QThread):
 
             self.status.emit(f"Identifying {record.source_ref}  ({i + 1} of {total})…")
             try:
+                log.debug("Recognizing %s...", record.source_ref)
+                t0 = time.perf_counter()
                 smiles, confidence = _run_decimer(record.recognition_bytes)
+                log.debug("%s -> SMILES '%s' (%.2fs)", record.source_ref, smiles, time.perf_counter() - t0)
                 record.predicted_smiles = smiles
                 record.confidence = confidence
 
                 if record.prediction_type == "iupac" and smiles:
                     self.status.emit(f"Looking up IUPAC name for {record.source_ref}…")
                     try:
+                        log.debug("Looking up IUPAC name for %s...", record.source_ref)
+                        t0 = time.perf_counter()
                         record.iupac_name = lookup_iupac(smiles, api_key)
+                        log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.iupac_name, time.perf_counter() - t0)
                     except Exception as exc:
                         log.warning("IUPAC lookup failed for %s: %s", record.source_ref, exc)
                         self.error.emit(f"IUPAC lookup failed for {record.source_ref}: {exc}")
@@ -58,7 +68,10 @@ class RecognizerWorker(QThread):
                 elif record.prediction_type == "trivial" and smiles:
                     self.status.emit(f"Looking up common name for {record.source_ref}…")
                     try:
+                        log.debug("Looking up common name for %s...", record.source_ref)
+                        t0 = time.perf_counter()
                         record.trivial_name = lookup_trivial_name(smiles, api_key)
+                        log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.trivial_name, time.perf_counter() - t0)
                     except Exception as exc:
                         log.warning("Common name lookup failed for %s: %s", record.source_ref, exc)
                         self.error.emit(f"Common name lookup failed for {record.source_ref}: {exc}")

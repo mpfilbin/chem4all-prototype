@@ -1,6 +1,7 @@
 from pathlib import Path
 from PIL import Image
 import io
+import logging
 import pytest
 from pptx import Presentation
 from pptx.util import Inches
@@ -128,3 +129,21 @@ def test_extract_docx_two_images_no_duplicates(tmp_path):
     doc.save(str(path))
     records = extract(path, Config(thumbnail_max_size=64, recognition_max_size=64))
     assert len(records) == 2
+
+
+def test_extract_pptx_logs_opened_and_extracted(sample_pptx, caplog):
+    caplog.set_level(logging.DEBUG, logger="pipeline.extractor")
+    config = Config(thumbnail_max_size=64, recognition_max_size=128)
+    records = extract(sample_pptx, config)
+    messages = [r.message for r in caplog.records]
+    assert any(m.startswith("Opened") and "1 images found" in m for m in messages)
+    assert f"Extracted {records[0].source_ref}" in messages
+
+
+def test_extract_docx_logs_opened_and_extracted(sample_docx, caplog):
+    caplog.set_level(logging.DEBUG, logger="pipeline.extractor")
+    config = Config(thumbnail_max_size=64, recognition_max_size=128)
+    records = extract(sample_docx, config)
+    messages = [r.message for r in caplog.records]
+    assert any(m.startswith("Opened") and "1 images found" in m for m in messages)
+    assert f"Extracted {records[0].source_ref}" in messages
