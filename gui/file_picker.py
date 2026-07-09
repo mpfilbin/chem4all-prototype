@@ -82,6 +82,7 @@ class FilePickerWindow(QWidget):
             "Chemical structure recognition will not work until the model is installed."
         )
         self._model_status_label.setWordWrap(True)
+        self._model_status_label.setStyleSheet("QLabel { color: #664d03; }")
         vbox.addWidget(self._model_status_label)
 
         self._progress_bar = QProgressBar()
@@ -92,10 +93,20 @@ class FilePickerWindow(QWidget):
 
         self._bytes_label = QLabel()
         self._bytes_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._bytes_label.setStyleSheet("QLabel { color: #664d03; }")
         self._bytes_label.hide()
         vbox.addWidget(self._bytes_label)
 
         self._download_btn = QPushButton("Download Model  (~600 MB)")
+        self._download_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: #ffc107; color: #212529; border: 1px solid #e0a800;"
+            "  border-radius: 4px; padding: 6px 12px; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background: #e0a800; }"
+            "QPushButton:pressed { background: #c69500; }"
+            "QPushButton:disabled { background: #ffe69c; color: #8a6d1f; }"
+        )
         self._download_btn.clicked.connect(self._start_download)
         vbox.addWidget(self._download_btn)
 
