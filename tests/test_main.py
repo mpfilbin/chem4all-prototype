@@ -58,3 +58,27 @@ def test_launch_gui_passes_config_path_to_run_app(monkeypatch):
     assert seen["run_app_config"] == config
     assert seen["run_app_path"] == config_path
     assert seen["exit_code"] == 0
+
+
+def test_main_calls_configure_logging_with_loaded_config(monkeypatch, tmp_path):
+    cfg_path = tmp_path / "custom-config.json"
+    seen: dict[str, object] = {}
+
+    def fake_load_config(path):
+        return Config(page_size=9)
+
+    def fake_configure_logging(config):
+        seen["configured_config"] = config
+        return object()
+
+    def fake_launch_gui(config, config_path):
+        pass
+
+    monkeypatch.setattr("config.load_config", fake_load_config)
+    monkeypatch.setattr("logging_setup.configure_logging", fake_configure_logging)
+    monkeypatch.setattr(main, "_launch_gui", fake_launch_gui)
+    monkeypatch.setattr(sys, "argv", ["chem4all", "--config", str(cfg_path)])
+
+    main.main()
+
+    assert seen["configured_config"].page_size == 9
