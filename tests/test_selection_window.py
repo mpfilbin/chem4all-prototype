@@ -23,14 +23,33 @@ def _make_record(id="r1"):
     )
 
 
-def test_selection_row_defaults_to_smiles_only():
+def test_selection_row_defaults_to_decorative_only():
     window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
-    assert window._rows[0].prediction_types == ["smiles"]
+    row = window._rows[0]
+    assert row.prediction_types == ["decorative"]
+    assert row._decorative_check.isChecked() is True
+    assert row._smiles_check.isChecked() is False
+    assert row._smiles_check.isEnabled() is False
+
+
+def test_unchecking_default_decorative_leaves_all_types_unchecked():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+
+    row._decorative_check.setChecked(False)
+
+    assert row._smiles_check.isChecked() is False
+    assert row._iupac_check.isChecked() is False
+    assert row._trivial_check.isChecked() is False
+    assert row._describe_check.isChecked() is False
+    assert row.prediction_types == []
 
 
 def test_selection_row_reports_multiple_checked_types():
     window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
     row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    row._smiles_check.setChecked(True)
     row._iupac_check.setChecked(True)
     row._describe_check.setChecked(True)
     assert row.prediction_types == ["smiles", "iupac", "description"]
@@ -40,9 +59,22 @@ def test_identify_button_disabled_when_included_row_has_no_types():
     window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
     window.show()
     row = window._rows[0]
-    row._smiles_check.setChecked(False)
+    row._decorative_check.setChecked(False)
     assert window._identify_btn.isEnabled() is False
     assert window._error_banner.isVisible() is True
+
+
+def test_identify_button_enabled_with_only_decorative_checked():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    window.show()
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    assert window._identify_btn.isEnabled() is False  # sanity check: no types yet
+
+    row._decorative_check.setChecked(True)
+
+    assert window._identify_btn.isEnabled() is True
+    assert window._error_banner.isVisible() is False
 
 
 def test_identify_button_enabled_when_all_included_rows_have_types():
@@ -61,7 +93,7 @@ def test_error_banner_ignores_excluded_rows_with_no_types():
     window.show()
     row2 = window._rows[1]
     row2.checkbox.setChecked(False)
-    row2._smiles_check.setChecked(False)
+    row2._decorative_check.setChecked(False)
     assert window._identify_btn.isEnabled() is True
     assert window._error_banner.isVisible() is False
 
@@ -104,8 +136,44 @@ def test_start_identification_sets_prediction_types_on_selected_records(monkeypa
     record = _make_record()
     window = SelectionWindow([record], Config(), Path("dummy.pptx"))
     row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    row._smiles_check.setChecked(True)
     row._iupac_check.setChecked(True)
 
     window._start_identification()
 
     assert record.prediction_types == ["smiles", "iupac"]
+
+
+def test_decorative_checkbox_disables_other_prediction_checks():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    row._smiles_check.setChecked(True)
+
+    row._decorative_check.setChecked(True)
+
+    assert row._smiles_check.isChecked() is False
+    assert row._smiles_check.isEnabled() is False
+    assert row._iupac_check.isEnabled() is False
+    assert row._trivial_check.isEnabled() is False
+    assert row._describe_check.isEnabled() is False
+    assert row.prediction_types == ["decorative"]
+
+
+def test_unchecking_decorative_restores_prior_checkbox_state():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    row._smiles_check.setChecked(True)
+    row._iupac_check.setChecked(True)
+
+    row._decorative_check.setChecked(True)
+    row._decorative_check.setChecked(False)
+
+    assert row._smiles_check.isChecked() is True
+    assert row._smiles_check.isEnabled() is True
+    assert row._iupac_check.isChecked() is True
+    assert row._trivial_check.isChecked() is False
+    assert row._describe_check.isChecked() is False
+    assert row.prediction_types == ["smiles", "iupac"]

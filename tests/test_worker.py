@@ -92,3 +92,41 @@ def test_worker_handles_multiple_prediction_types_in_one_record(monkeypatch, cap
     assert record.trivial_name is None
     assert record.description == "A benzene ring diagram."
     assert len(ready_records) == 1
+
+
+def test_worker_does_not_process_decorative_record(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "gui.worker._run_decimer",
+        lambda *args, **kwargs: calls.append("decimer") or ("C", 1.0),
+    )
+    monkeypatch.setattr(
+        "pipeline.describer.describe_image",
+        lambda *args, **kwargs: calls.append("describe") or "some description",
+    )
+
+    record = _make_record(prediction_types=["decorative"])
+    ready_records = []
+    worker = RecognizerWorker([record], Config())
+    worker.record_ready.connect(ready_records.append)
+    worker.run()
+
+    assert calls == []
+    assert record.predicted_smiles is None
+    assert record.confidence is None
+    assert record.iupac_name is None
+    assert record.trivial_name is None
+    assert record.description is None
+    assert len(ready_records) == 1
+    assert ready_records[0] is record
+
+
+def test_worker_emits_status_for_decorative_record():
+    record = _make_record(prediction_types=["decorative"])
+    statuses = []
+    worker = RecognizerWorker([record], Config())
+    worker.status.connect(statuses.append)
+    worker.run()
+
+    assert len(statuses) == 1
+    assert "slide 1, shape 1" in statuses[0]

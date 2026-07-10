@@ -15,7 +15,7 @@ def test_image_record_defaults():
     assert record.approved_value is None
     assert record.is_chemical is None
     assert record.description is None
-    assert record.prediction_types == ["smiles"]
+    assert record.prediction_types == ["decorative"]
 
 
 def test_image_record_to_review_dict_excludes_bytes():
@@ -30,6 +30,7 @@ def test_image_record_to_review_dict_excludes_bytes():
         trivial_name="benzene",
         approved_value="C1=CC=CC=C1",
         is_chemical=True,
+        prediction_types=["smiles"],
     )
     d = record.to_review_dict()
     assert "thumbnail_bytes" not in d
@@ -56,6 +57,7 @@ def test_image_record_from_review_dict_roundtrip():
         trivial_name="benzene",
         approved_value="C1=CC=CC=C1",
         is_chemical=True,
+        prediction_types=["smiles"],
     )
     d = record.to_review_dict()
     restored = ImageRecord.from_review_dict(d)
@@ -90,7 +92,7 @@ def test_image_record_prediction_types_default():
         thumbnail_bytes=b"",
         recognition_bytes=b"",
     )
-    assert record.prediction_types == ["smiles"]
+    assert record.prediction_types == ["decorative"]
 
 
 def test_result_lines_returns_smiles_by_default():
@@ -191,3 +193,14 @@ def test_result_lines_returns_multiple_types_in_fixed_order():
         "benzene",
         "A benzene ring diagram.",
     ]
+
+
+def test_result_lines_returns_decorative_placeholder():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        prediction_types=["decorative"],
+    )
+    assert record.result_lines() == ["Decorative Image"]

@@ -90,7 +90,7 @@ class _RecordRow(QWidget):
     def apply_to_record(self) -> None:
         value = self._value_field.toPlainText().strip()
         self._record.approved_value = value
-        self._record.is_chemical = bool(value)
+        self._record.is_chemical = True
 
 
 class ReviewWindow(QWidget):
@@ -120,8 +120,8 @@ class ReviewWindow(QWidget):
 
         self._hint_banner = QLabel(
             "Predicted values are editable — edit a field to override the "
-            "prediction in the exported file. Clearing a field excludes "
-            "that image; use Restore to undo."
+            "prediction in the exported file. Clearing a field writes empty "
+            "alt text for that image; use Restore to undo."
         )
         self._hint_banner.setWordWrap(True)
         self._hint_banner.setStyleSheet(

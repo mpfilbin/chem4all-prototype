@@ -46,7 +46,7 @@ def _parse_source_ref_pptx(source_ref: str) -> tuple[int, int]:
 
 
 def _write_pptx(records: list[ImageRecord], dest: Path) -> None:
-    approved = [r for r in records if r.is_chemical is True and r.approved_value]
+    approved = [r for r in records if r.is_chemical is True]
     if not approved:
         return
     prs = Presentation(str(dest))
@@ -54,7 +54,7 @@ def _write_pptx(records: list[ImageRecord], dest: Path) -> None:
         try:
             slide_idx, shape_idx = _parse_source_ref_pptx(record.source_ref)
             shape = list(prs.slides[slide_idx].shapes)[shape_idx]
-            shape.element.nvPicPr.cNvPr.set("descr", record.approved_value)
+            shape.element.nvPicPr.cNvPr.set("descr", record.approved_value or "")
         except Exception as exc:
             log.warning("Could not set alt-text for %s: %s", record.source_ref, exc)
     prs.save(str(dest))
@@ -62,7 +62,7 @@ def _write_pptx(records: list[ImageRecord], dest: Path) -> None:
 
 
 def _write_docx(records: list[ImageRecord], dest: Path) -> None:
-    approved = [r for r in records if r.is_chemical is True and r.approved_value]
+    approved = [r for r in records if r.is_chemical is True]
     if not approved:
         return
     doc = Document(str(dest))
@@ -97,7 +97,7 @@ def _write_docx(records: list[ImageRecord], dest: Path) -> None:
                 if node is not None:
                     doc_pr = node.find(f'{{{WP}}}docPr')
                     if doc_pr is not None:
-                        doc_pr.set("descr", record.approved_value)
+                        doc_pr.set("descr", record.approved_value or "")
         except Exception as exc:
             log.warning("Could not set alt-text for %s: %s", record.source_ref, exc)
     doc.save(str(dest))

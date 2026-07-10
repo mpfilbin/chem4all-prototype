@@ -78,6 +78,9 @@ class RecognizerWorker(QThread):
                     except Exception as exc:
                         log.warning("Description failed for %s: %s", record.source_ref, exc)
                         self.error.emit(f"Could not describe {record.source_ref}: {exc}")
+
+                if "decorative" in types:
+                    self.status.emit(f"Skipping decorative image {record.source_ref}  ({i + 1} of {total})…")
             finally:
                 record.recognition_bytes = b""
 

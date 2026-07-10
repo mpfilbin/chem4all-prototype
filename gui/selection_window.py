@@ -147,16 +147,44 @@ class _SelectionRow(QFrame):
         ref.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout.addWidget(ref)
 
+        self._decorative_check = QCheckBox("Decorative")
+        layout.addWidget(self._decorative_check)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.VLine)
+        divider.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(divider)
+        layout.addSpacing(8)
+
         self._smiles_check = QCheckBox("SMILES")
         self._iupac_check = QCheckBox("IUPAC Name")
         self._trivial_check = QCheckBox("Common Name")
         self._describe_check = QCheckBox("Describe Image")
-        self._smiles_check.setChecked(True)
-        for box in (self._smiles_check, self._iupac_check, self._trivial_check, self._describe_check):
+        self._other_checks = [
+            self._smiles_check, self._iupac_check, self._trivial_check, self._describe_check,
+        ]
+        for box in self._other_checks:
             layout.addWidget(box)
+
+        self._decorative_check.setChecked(True)
+        self._on_decorative_toggled()
+        self._decorative_check.stateChanged.connect(self._on_decorative_toggled)
+
+    def _on_decorative_toggled(self) -> None:
+        if self._decorative_check.isChecked():
+            self._saved_other_states = [box.isChecked() for box in self._other_checks]
+            for box in self._other_checks:
+                box.setChecked(False)
+                box.setEnabled(False)
+        else:
+            for box, was_checked in zip(self._other_checks, self._saved_other_states):
+                box.setEnabled(True)
+                box.setChecked(was_checked)
 
     @property
     def prediction_types(self) -> list[str]:
+        if self._decorative_check.isChecked():
+            return ["decorative"]
         types = []
         if self._smiles_check.isChecked():
             types.append("smiles")
@@ -170,6 +198,7 @@ class _SelectionRow(QFrame):
 
     def connect_changed(self, slot) -> None:
         self.checkbox.stateChanged.connect(slot)
+        self._decorative_check.stateChanged.connect(slot)
         self._smiles_check.stateChanged.connect(slot)
         self._iupac_check.stateChanged.connect(slot)
         self._trivial_check.stateChanged.connect(slot)

@@ -43,6 +43,23 @@ def test_record_row_editable_and_populated_when_done():
     assert row._value_field.toPlainText() == "CCO\n\nethanol"
 
 
+def test_record_row_shows_decorative_placeholder_when_done():
+    record = _make_record(prediction_types=["decorative"])
+    row = _RecordRow(record, done=True)
+    assert row._value_field.isReadOnly() is False
+    assert row._value_field.toPlainText() == "Decorative Image"
+
+
+def test_restore_predicted_value_resets_decorative_text():
+    record = _make_record(prediction_types=["decorative"])
+    row = _RecordRow(record, done=True)
+    row._value_field.setPlainText("edited alt text")
+
+    row._restore_predicted()
+
+    assert row._value_field.toPlainText() == "Decorative Image"
+
+
 def test_update_record_unlocks_row_and_fills_composed_text():
     record = _make_record(prediction_types=["smiles", "description"])
     row = _RecordRow(record, done=False)
@@ -53,6 +70,27 @@ def test_update_record_unlocks_row_and_fills_composed_text():
 
     assert row._value_field.isReadOnly() is False
     assert row._value_field.toPlainText() == "CCO\n\nA clear liquid in a flask."
+
+
+def test_apply_to_record_writes_empty_alt_text_instead_of_excluding(tmp_path):
+    record = _make_record(predicted_smiles="CCO", prediction_types=["smiles"])
+    row = _RecordRow(record, done=True)
+    row._value_field.setPlainText("")
+
+    row.apply_to_record()
+
+    assert record.approved_value == ""
+    assert record.is_chemical is True
+
+
+def test_apply_to_record_sets_is_chemical_true_with_a_value():
+    record = _make_record(predicted_smiles="CCO", prediction_types=["smiles"])
+    row = _RecordRow(record, done=True)
+
+    row.apply_to_record()
+
+    assert record.approved_value == "CCO"
+    assert record.is_chemical is True
 
 
 def test_review_window_on_record_ready_unlocks_visible_row(tmp_path):
