@@ -47,4 +47,15 @@ def test_enter_event_uses_lightened_tint_for_dark_palette():
 
     widget.enterEvent(_enter_event())
 
-    assert widget.styleSheet() == "background-color: #2d2d2d;"
+    assert widget.styleSheet() == "background-color: #3c3c3c;"
+
+
+def test_enter_event_tint_stays_perceptible_for_near_black_palette():
+    widget = _HoverWidget()
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(0, 0, 0))
+    widget.setPalette(palette)
+
+    widget.enterEvent(_enter_event())
+
+    assert widget.styleSheet() == "background-color: #1e1e1e;"

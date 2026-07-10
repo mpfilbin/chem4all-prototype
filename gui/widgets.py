@@ -1,6 +1,6 @@
 from __future__ import annotations
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette, QPixmap
+from PyQt6.QtGui import QColor, QPalette, QPixmap
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QDialog
 from models.image_record import ImageRecord
 
@@ -54,12 +54,16 @@ class HoverHighlightMixin:
     palette-driven text under a dark system theme. Below the lightness
     threshold, the tint is instead computed by lightening the widget's own
     palette background, keeping it close to whatever the current theme's
-    background already is.
+    background already is. The lighten step is additive rather than
+    QColor.lighter()'s multiplicative scaling, which is a near no-op on
+    near-black backgrounds (scaling an already-tiny value by 150% stays
+    tiny) — additive guarantees the same visible delta everywhere in the
+    typical dark-theme window-background range (roughly 20-60 lightness).
     """
 
     HOVER_STYLESHEET = "background-color: #eef3fb;"
     _DARK_LIGHTNESS_THRESHOLD = 128
-    _DARK_MODE_LIGHTEN_FACTOR = 150
+    _DARK_MODE_LIGHTEN_DELTA = 30
 
     def enterEvent(self, event) -> None:
         self.setStyleSheet(self._hover_stylesheet())
@@ -72,6 +76,8 @@ class HoverHighlightMixin:
     def _hover_stylesheet(self) -> str:
         window_color = self.palette().color(QPalette.ColorRole.Window)
         if window_color.lightness() < self._DARK_LIGHTNESS_THRESHOLD:
-            tint = window_color.lighter(self._DARK_MODE_LIGHTEN_FACTOR)
+            delta = self._DARK_MODE_LIGHTEN_DELTA
+            r, g, b, _ = window_color.getRgb()
+            tint = QColor(min(255, r + delta), min(255, g + delta), min(255, b + delta))
             return f"background-color: {tint.name()};"
         return self.HOVER_STYLESHEET
