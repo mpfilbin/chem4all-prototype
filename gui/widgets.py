@@ -1,6 +1,6 @@
 from __future__ import annotations
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPalette, QPixmap
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QDialog
 from models.image_record import ImageRecord
 
@@ -47,14 +47,31 @@ class ThumbnailLabel(QLabel):
 
 
 class HoverHighlightMixin:
-    """Tints a widget's background while the mouse hovers over it."""
+    """Tints a widget's background while the mouse hovers over it.
+
+    Rows otherwise set no colors of their own and render entirely from the
+    system palette, so a hardcoded light tint would wash out light,
+    palette-driven text under a dark system theme. Below the lightness
+    threshold, the tint is instead computed by lightening the widget's own
+    palette background, keeping it close to whatever the current theme's
+    background already is.
+    """
 
     HOVER_STYLESHEET = "background-color: #eef3fb;"
+    _DARK_LIGHTNESS_THRESHOLD = 128
+    _DARK_MODE_LIGHTEN_FACTOR = 150
 
     def enterEvent(self, event) -> None:
-        self.setStyleSheet(self.HOVER_STYLESHEET)
+        self.setStyleSheet(self._hover_stylesheet())
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
         self.setStyleSheet("")
         super().leaveEvent(event)
+
+    def _hover_stylesheet(self) -> str:
+        window_color = self.palette().color(QPalette.ColorRole.Window)
+        if window_color.lightness() < self._DARK_LIGHTNESS_THRESHOLD:
+            tint = window_color.lighter(self._DARK_MODE_LIGHTEN_FACTOR)
+            return f"background-color: {tint.name()};"
+        return self.HOVER_STYLESHEET

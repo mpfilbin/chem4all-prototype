@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import sys
 from PyQt6.QtCore import QEvent, QPointF
-from PyQt6.QtGui import QEnterEvent
+from PyQt6.QtGui import QColor, QEnterEvent, QPalette
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from gui.widgets import HoverHighlightMixin
@@ -37,3 +37,14 @@ def test_leave_event_clears_hover_stylesheet():
     widget.leaveEvent(QEvent(QEvent.Type.Leave))
 
     assert widget.styleSheet() == ""
+
+
+def test_enter_event_uses_lightened_tint_for_dark_palette():
+    widget = _HoverWidget()
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
+    widget.setPalette(palette)
+
+    widget.enterEvent(_enter_event())
+
+    assert widget.styleSheet() == "background-color: #2d2d2d;"
