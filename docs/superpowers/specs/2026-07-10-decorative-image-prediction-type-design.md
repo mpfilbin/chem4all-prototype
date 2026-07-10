@@ -78,6 +78,18 @@ Behavior:
   False, False]` for SMILES/IUPAC/Common Name/Describe) so restoring after a
   check/uncheck with no prior interaction reproduces today's default.
 
+**Amendment (2026-07-10):** The row's starting default is now Decorative
+checked, not SMILES. All four other checkboxes start unchecked. Construction
+sets up the checkboxes unchecked, wires `_decorative_check.stateChanged` to
+`_on_decorative_toggled` as before, then calls
+`self._decorative_check.setChecked(True)` — this routes through the same
+snapshot-then-disable logic already built for user toggling, so no new
+state-tracking is introduced. The snapshot taken at construction time is
+therefore `[False, False, False, False]`, and unchecking Decorative with no
+prior manual interaction restores that all-unchecked state (the user chose
+this over falling back to SMILES-checked) — the row is then invalid until
+the user manually picks a type, same validation path as today.
+
 `prediction_types` property:
 
 ```python

@@ -160,7 +160,6 @@ class _SelectionRow(QFrame):
         self._iupac_check = QCheckBox("IUPAC Name")
         self._trivial_check = QCheckBox("Common Name")
         self._describe_check = QCheckBox("Describe Image")
-        self._smiles_check.setChecked(True)
         self._other_checks = [
             self._smiles_check, self._iupac_check, self._trivial_check, self._describe_check,
         ]
@@ -169,6 +168,7 @@ class _SelectionRow(QFrame):
 
         self._saved_other_states = [box.isChecked() for box in self._other_checks]
         self._decorative_check.stateChanged.connect(self._on_decorative_toggled)
+        self._decorative_check.setChecked(True)
 
     def _on_decorative_toggled(self) -> None:
         if self._decorative_check.isChecked():
