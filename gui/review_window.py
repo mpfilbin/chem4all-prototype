@@ -11,12 +11,13 @@ from PyQt6.QtWidgets import (
 from config import Config
 from models.image_record import ImageRecord
 from pipeline.writer import write
-from gui.widgets import ThumbnailLabel
+from gui.widgets import ThumbnailLabel, HoverHighlightMixin
 
 
-class _RecordRow(QWidget):
+class _RecordRow(HoverHighlightMixin, QWidget):
     def __init__(self, record: ImageRecord, done: bool, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._record = record
         self._done = done
         self._edited = False
