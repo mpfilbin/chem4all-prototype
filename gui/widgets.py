@@ -44,3 +44,17 @@ class ThumbnailLabel(QLabel):
     def update_record(self, record: ImageRecord) -> None:
         self._record = record
         self._refresh()
+
+
+class HoverHighlightMixin:
+    """Tints a widget's background while the mouse hovers over it."""
+
+    HOVER_STYLESHEET = "background-color: #eef3fb;"
+
+    def enterEvent(self, event) -> None:
+        self.setStyleSheet(self.HOVER_STYLESHEET)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self.setStyleSheet("")
+        super().leaveEvent(event)
