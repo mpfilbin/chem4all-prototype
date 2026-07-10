@@ -57,6 +57,36 @@ def test_lookup_iupac_network_error_raises(monkeypatch):
             lookup_iupac("CCO", "any-key")
 
 
+def test_lookup_iupac_with_image_sends_multimodal_content(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
+        result = lookup_iupac("c1ccccc1", "test-key", image_bytes=b"fakepngbytes")
+    assert result == "benzene"
+    payload = mock_post.call_args.kwargs["json"]
+    content = payload["messages"][1]["content"]
+    assert isinstance(content, list)
+    assert content[0] == {"type": "text", "text": "c1ccccc1"}
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+def test_lookup_iupac_without_image_sends_plain_string_content(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
+        lookup_iupac("c1ccccc1", "test-key")
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["messages"][1]["content"] == "c1ccccc1"
+
+
+def test_lookup_iupac_system_prompt_forbids_trivial_name_fallback(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
+        lookup_iupac("c1ccccc1", "test-key")
+    payload = mock_post.call_args.kwargs["json"]
+    system_content = payload["messages"][0]["content"].lower()
+    assert "trivial" in system_content or "common" in system_content or "trade" in system_content
+
+
 # --- lookup_trivial_name ---
 
 def test_lookup_trivial_name_success(monkeypatch):
@@ -94,3 +124,16 @@ def test_lookup_trivial_name_network_error_raises(monkeypatch):
     with patch("pipeline.namer.requests.post", side_effect=req.RequestException("timeout")):
         with pytest.raises(RuntimeError, match="Network error"):
             lookup_trivial_name("CCO", "any-key")
+
+
+def test_lookup_trivial_name_with_image_sends_multimodal_content(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
+        result = lookup_trivial_name("c1ccccc1", "test-key", image_bytes=b"fakepngbytes")
+    assert result == "benzene"
+    payload = mock_post.call_args.kwargs["json"]
+    content = payload["messages"][1]["content"]
+    assert isinstance(content, list)
+    assert content[0] == {"type": "text", "text": "c1ccccc1"}
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")

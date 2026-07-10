@@ -51,7 +51,7 @@ class RecognizerWorker(QThread):
                         try:
                             log.debug("Looking up IUPAC name for %s...", record.source_ref)
                             t0 = time.perf_counter()
-                            record.iupac_name = lookup_iupac(smiles, api_key)
+                            record.iupac_name = lookup_iupac(smiles, api_key, record.recognition_bytes)
                             log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.iupac_name, time.perf_counter() - t0)
                         except Exception as exc:
                             log.warning("IUPAC lookup failed for %s: %s", record.source_ref, exc)
@@ -62,7 +62,7 @@ class RecognizerWorker(QThread):
                         try:
                             log.debug("Looking up common name for %s...", record.source_ref)
                             t0 = time.perf_counter()
-                            record.trivial_name = lookup_trivial_name(smiles, api_key)
+                            record.trivial_name = lookup_trivial_name(smiles, api_key, record.recognition_bytes)
                             log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.trivial_name, time.perf_counter() - t0)
                         except Exception as exc:
                             log.warning("Common name lookup failed for %s: %s", record.source_ref, exc)
