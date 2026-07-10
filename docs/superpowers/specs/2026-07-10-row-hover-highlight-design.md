@@ -106,7 +106,6 @@ following that same pattern:
   `row.styleSheet() == ""`.
 
 Add these for `_RecordRow` in `tests/test_review_window.py` and for
-`_SelectionRow` in a new `tests/test_selection_window.py` (no test file for
-`selection_window.py` currently exists).
+`_SelectionRow` in the existing `tests/test_selection_window.py`.
 
 Also manually verified by running the app and hovering rows on both screens.
