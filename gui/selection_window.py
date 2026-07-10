@@ -166,9 +166,9 @@ class _SelectionRow(QFrame):
         for box in self._other_checks:
             layout.addWidget(box)
 
-        self._saved_other_states = [box.isChecked() for box in self._other_checks]
-        self._decorative_check.stateChanged.connect(self._on_decorative_toggled)
         self._decorative_check.setChecked(True)
+        self._on_decorative_toggled()
+        self._decorative_check.stateChanged.connect(self._on_decorative_toggled)
 
     def _on_decorative_toggled(self) -> None:
         if self._decorative_check.isChecked():
