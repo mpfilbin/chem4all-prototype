@@ -95,11 +95,15 @@ def test_worker_handles_multiple_prediction_types_in_one_record(monkeypatch, cap
 
 
 def test_worker_does_not_process_decorative_record(monkeypatch):
-    def _fail(*args, **kwargs):
-        raise AssertionError("model call should not run for a decorative record")
-
-    monkeypatch.setattr("gui.worker._run_decimer", _fail)
-    monkeypatch.setattr("pipeline.describer.describe_image", _fail)
+    calls = []
+    monkeypatch.setattr(
+        "gui.worker._run_decimer",
+        lambda *args, **kwargs: calls.append("decimer") or ("C", 1.0),
+    )
+    monkeypatch.setattr(
+        "pipeline.describer.describe_image",
+        lambda *args, **kwargs: calls.append("describe") or "some description",
+    )
 
     record = _make_record(prediction_types=["decorative"])
     ready_records = []
@@ -107,6 +111,7 @@ def test_worker_does_not_process_decorative_record(monkeypatch):
     worker.record_ready.connect(ready_records.append)
     worker.run()
 
+    assert calls == []
     assert record.predicted_smiles is None
     assert record.confidence is None
     assert record.iupac_name is None
