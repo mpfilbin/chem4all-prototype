@@ -48,6 +48,10 @@ class ImageRecord:
 
     @classmethod
     def from_review_dict(cls, d: dict) -> ImageRecord:
+        prediction_types = d.get("prediction_types")
+        if prediction_types is None:
+            legacy_prediction_type = d.get("prediction_type")
+            prediction_types = [legacy_prediction_type] if legacy_prediction_type else ["smiles"]
         return cls(
             id=d["id"],
             source_ref=d["source_ref"],
@@ -58,7 +62,7 @@ class ImageRecord:
             iupac_name=d.get("iupac_name"),
             trivial_name=d.get("trivial_name"),
             description=d.get("description"),
-            prediction_types=d.get("prediction_types", ["smiles"]),
+            prediction_types=prediction_types,
             approved_value=d.get("approved_value"),
             is_chemical=d.get("is_chemical"),
         )

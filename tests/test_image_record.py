@@ -69,6 +69,20 @@ def test_image_record_from_review_dict_roundtrip():
     assert restored.prediction_types == ["smiles"]
 
 
+def test_image_record_from_review_dict_supports_legacy_prediction_type():
+    restored = ImageRecord.from_review_dict(
+        {
+            "id": "abc123",
+            "source_ref": "slide 1, shape 1",
+            "prediction_type": "iupac",
+            "predicted_smiles": "C",
+            "iupac_name": "methane",
+        }
+    )
+    assert restored.prediction_types == ["iupac"]
+    assert restored.result_lines() == ["methane"]
+
+
 def test_image_record_prediction_types_default():
     record = ImageRecord(
         id="x",
