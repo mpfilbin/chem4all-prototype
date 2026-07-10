@@ -4,11 +4,14 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import sys
+from PyQt6.QtCore import QEvent, QPointF
+from PyQt6.QtGui import QEnterEvent
 from PyQt6.QtWidgets import QApplication
 
 from config import Config
 from models.image_record import ImageRecord
 from gui.review_window import ReviewWindow, _RecordRow
+from gui.widgets import HoverHighlightMixin
 
 _app = QApplication.instance() or QApplication(sys.argv)
 
@@ -105,3 +108,25 @@ def test_review_window_on_record_ready_unlocks_visible_row(tmp_path):
     assert record.id in window._done_ids
     assert row._value_field.isReadOnly() is False
     assert row._value_field.toPlainText() == "CCO"
+
+
+def _enter_event() -> QEnterEvent:
+    return QEnterEvent(QPointF(0, 0), QPointF(0, 0), QPointF(0, 0))
+
+
+def test_record_row_applies_hover_stylesheet_on_enter():
+    row = _RecordRow(_make_record(), done=False)
+    assert row.styleSheet() == ""
+
+    row.enterEvent(_enter_event())
+
+    assert row.styleSheet() == HoverHighlightMixin.HOVER_STYLESHEET
+
+
+def test_record_row_clears_hover_stylesheet_on_leave():
+    row = _RecordRow(_make_record(), done=False)
+    row.enterEvent(_enter_event())
+
+    row.leaveEvent(QEvent(QEvent.Type.Leave))
+
+    assert row.styleSheet() == ""

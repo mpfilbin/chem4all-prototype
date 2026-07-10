@@ -5,11 +5,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import sys
 from pathlib import Path
+from PyQt6.QtCore import QEvent, QPointF
+from PyQt6.QtGui import QEnterEvent
 from PyQt6.QtWidgets import QApplication
 
 from config import Config
 from models.image_record import ImageRecord
 from gui.selection_window import SelectionWindow
+from gui.widgets import HoverHighlightMixin
 
 _app = QApplication.instance() or QApplication(sys.argv)
 
@@ -96,6 +99,30 @@ def test_error_banner_ignores_excluded_rows_with_no_types():
     row2._decorative_check.setChecked(False)
     assert window._identify_btn.isEnabled() is True
     assert window._error_banner.isVisible() is False
+
+
+def _enter_event() -> QEnterEvent:
+    return QEnterEvent(QPointF(0, 0), QPointF(0, 0), QPointF(0, 0))
+
+
+def test_selection_row_applies_hover_stylesheet_on_enter():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    assert row.styleSheet() == ""
+
+    row.enterEvent(_enter_event())
+
+    assert row.styleSheet() == HoverHighlightMixin.HOVER_STYLESHEET
+
+
+def test_selection_row_clears_hover_stylesheet_on_leave():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row.enterEvent(_enter_event())
+
+    row.leaveEvent(QEvent(QEvent.Type.Leave))
+
+    assert row.styleSheet() == ""
 
 
 def test_start_identification_sets_prediction_types_on_selected_records(monkeypatch):
