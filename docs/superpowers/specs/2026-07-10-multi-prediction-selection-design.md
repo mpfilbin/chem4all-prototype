@@ -32,9 +32,16 @@ requested for that image has returned.
 
 Out of scope: relaxing the existing whole-batch gate on Prev/Next/Accept
 (unchanged — those stay disabled until every record in the batch has
-returned, regardless of this feature). No backward compatibility with
-previously saved review JSON files using the old single `prediction_type`
-field — this is a breaking format change and that's acceptable.
+returned, regardless of this feature).
+
+**Revised after initial implementation:** the original design accepted a
+breaking change to previously saved review JSON files (old single
+`prediction_type` key). A post-merge review pass (GitHub Copilot, commit
+`5da645c`) added a compatibility fallback in `from_review_dict()` — if
+`prediction_types` is absent, it reads the legacy singular
+`prediction_type` key and wraps it in a one-element list, defaulting to
+`["smiles"]` only if neither key is present. The user reviewed and kept
+this change, reversing the original "no compat needed" decision.
 
 ## Data model
 
