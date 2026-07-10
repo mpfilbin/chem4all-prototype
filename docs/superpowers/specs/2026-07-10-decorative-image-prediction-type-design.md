@@ -32,6 +32,18 @@ Out of scope: any special accessibility handling of decorative alt text in
 user's edit of it) is written as alt text through the existing
 `is_chemical`/`approved_value` path, unchanged.
 
+**Amendment (2026-07-10, PR review):** The "exclude on cleared field"
+behavior called out as unchanged above was subsequently removed entirely,
+app-wide (not scoped to decorative), in response to PR #8 review comment
+#5 (Copilot): clearing a field now writes empty alt text via
+`pipeline/writer.py` instead of omitting the image from export.
+`gui/review_window.py:apply_to_record()` no longer gates `is_chemical` on
+`bool(value)` — every reviewed record is now considered approved, and
+`writer.py`'s filter drops its `approved_value` truthiness check
+accordingly. This reverses the "unchanged" claim above; see the PR
+discussion for the full reasoning on why a narrower decorative-only scope
+was rejected in favor of a uniform rule.
+
 ## Data model (`models/image_record.py`)
 
 No new field. `result_lines()` gains a special case checked before the
