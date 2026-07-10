@@ -16,7 +16,7 @@ class ImageRecord:
     iupac_name: str | None = None
     trivial_name: str | None = None
     description: str | None = None
-    prediction_types: list[str] = field(default_factory=lambda: ["smiles"])
+    prediction_types: list[str] = field(default_factory=lambda: ["decorative"])
     approved_value: str | None = None
     is_chemical: bool | None = None
 
