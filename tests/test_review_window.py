@@ -43,6 +43,23 @@ def test_record_row_editable_and_populated_when_done():
     assert row._value_field.toPlainText() == "CCO\n\nethanol"
 
 
+def test_record_row_shows_decorative_placeholder_when_done():
+    record = _make_record(prediction_types=["decorative"])
+    row = _RecordRow(record, done=True)
+    assert row._value_field.isReadOnly() is False
+    assert row._value_field.toPlainText() == "Decorative Image"
+
+
+def test_restore_predicted_value_resets_decorative_text():
+    record = _make_record(prediction_types=["decorative"])
+    row = _RecordRow(record, done=True)
+    row._value_field.setPlainText("edited alt text")
+
+    row._restore_predicted()
+
+    assert row._value_field.toPlainText() == "Decorative Image"
+
+
 def test_update_record_unlocks_row_and_fills_composed_text():
     record = _make_record(prediction_types=["smiles", "description"])
     row = _RecordRow(record, done=False)
