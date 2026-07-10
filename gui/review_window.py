@@ -5,25 +5,22 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QLineEdit, QTextEdit,
+    QPushButton, QLabel, QTextEdit,
     QMessageBox, QScrollArea,
 )
 from config import Config
 from models.image_record import ImageRecord
 from pipeline.writer import write
-from gui.widgets import ThumbnailLabel
-
-_TYPE_LABELS = {
-    "iupac": "IUPAC Name:",
-    "trivial": "Common Name:",
-    "description": "Image Description:",
-}
+from gui.widgets import ThumbnailLabel, HoverHighlightMixin
 
 
-class _RecordRow(QWidget):
-    def __init__(self, record: ImageRecord, parent=None):
+class _RecordRow(HoverHighlightMixin, QWidget):
+    def __init__(self, record: ImageRecord, done: bool, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._record = record
+        self._done = done
+        self._edited = False
 
         layout = QHBoxLayout()
 
@@ -33,31 +30,68 @@ class _RecordRow(QWidget):
         info = QVBoxLayout()
         info.addWidget(QLabel(record.source_ref))
 
-        info.addWidget(QLabel(_TYPE_LABELS.get(record.prediction_type, "Predicted SMILES:")))
-        self._result_field = QTextEdit(record.result_value() or "")
-        self._result_field.setReadOnly(True)
-        self._result_field.setPlaceholderText("Awaiting result…")
-        self._result_field.setFixedHeight(64)
-        self._result_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
-        info.addWidget(self._result_field)
+        info.addWidget(QLabel("Prediction Results:"))
+        self._value_field = QTextEdit()
+        self._value_field.setPlaceholderText("Awaiting result…")
+        self._value_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        metrics = self._value_field.fontMetrics()
+        frame = self._value_field.frameWidth() * 2
+        self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
 
-        info.addWidget(QLabel("Custom override:"))
-        self._override_field = QLineEdit()
-        self._override_field.setPlaceholderText("Leave blank to use the predicted value")
-        info.addWidget(self._override_field)
+        if done:
+            composed = "\n\n".join(record.result_lines())
+            initial_text = record.approved_value if record.approved_value is not None else composed
+            self._value_field.setPlainText(initial_text)
+            self._edited = initial_text != composed
+        else:
+            self._value_field.setReadOnly(True)
+
+        self._value_field.textChanged.connect(self._on_text_changed)
+        info.addWidget(self._value_field)
+
+        self._restore_btn = QPushButton("↺ Restore predicted value")
+        self._restore_btn.clicked.connect(self._restore_predicted)
+        info.addWidget(self._restore_btn)
+        self._update_restore_visibility()
 
         layout.addLayout(info)
         self.setLayout(layout)
 
+    def _set_field_text(self, text: str) -> None:
+        self._value_field.blockSignals(True)
+        self._value_field.setPlainText(text)
+        self._value_field.blockSignals(False)
+        self._update_restore_visibility()
+
+    def _on_text_changed(self) -> None:
+        self._edited = True
+        self._update_restore_visibility()
+
+    def _update_restore_visibility(self) -> None:
+        if not self._done:
+            self._restore_btn.setVisible(False)
+            return
+        predicted = "\n\n".join(self._record.result_lines())
+        self._restore_btn.setVisible(self._value_field.toPlainText().strip() != predicted)
+
+    def _restore_predicted(self) -> None:
+        self._set_field_text("\n\n".join(self._record.result_lines()))
+        self._edited = False
+
     def update_record(self, record: ImageRecord) -> None:
         self._record = record
         self._thumb.update_record(record)
-        self._result_field.setPlainText(record.result_value() or "")
+        was_done = self._done
+        self._done = True
+        if not was_done:
+            self._value_field.setReadOnly(False)
+        if not self._edited:
+            self._set_field_text("\n\n".join(record.result_lines()))
 
     def apply_to_record(self) -> None:
-        override = self._override_field.text().strip()
-        self._record.approved_value = override if override else self._record.result_value()
-        self._record.is_chemical = bool(self._record.approved_value)
+        value = self._value_field.toPlainText().strip()
+        self._record.approved_value = value
+        self._record.is_chemical = True
 
 
 class ReviewWindow(QWidget):
@@ -71,6 +105,7 @@ class ReviewWindow(QWidget):
         self._recognized = 0
         self._error_count = 0
         self._recognition_done = False
+        self._done_ids: set[str] = set()
 
         self.setWindowTitle(f"Review — {source_path.name}")
         self.setMinimumWidth(700)
@@ -83,6 +118,18 @@ class ReviewWindow(QWidget):
         )
         self._status_bar.setWordWrap(True)
         self._layout.addWidget(self._status_bar)
+
+        self._hint_banner = QLabel(
+            "Predicted values are editable — edit a field to override the "
+            "prediction in the exported file. Clearing a field writes empty "
+            "alt text for that image; use Restore to undo."
+        )
+        self._hint_banner.setWordWrap(True)
+        self._hint_banner.setStyleSheet(
+            "QLabel { background: #f0f0f0; color: #444; "
+            "padding: 6px 10px; border-radius: 4px; }"
+        )
+        self._layout.addWidget(self._hint_banner)
 
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
@@ -140,7 +187,7 @@ class ReviewWindow(QWidget):
                 item.widget().deleteLater()
         self._rows = []
         for record in self._page_records():
-            row = _RecordRow(record)
+            row = _RecordRow(record, done=record.id in self._done_ids)
             self._rows.append(row)
             self._grid.addWidget(row)
         self._page_label.setText(f"Page {self._page + 1} of {self._total_pages()}")
@@ -187,6 +234,7 @@ class ReviewWindow(QWidget):
 
     def on_record_ready(self, record: ImageRecord) -> None:
         self._recognized += 1
+        self._done_ids.add(record.id)
         for row in self._rows:
             if row._record.id == record.id:
                 row.update_record(record)

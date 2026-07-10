@@ -121,6 +121,32 @@ def test_writer_docx_sets_alt_text(tmp_path):
     assert any(dp.get("descr") == "C1=CC=CC=C1" for dp in _docx_doc_prs(out))
 
 
+def test_writer_pptx_writes_empty_alt_text_when_cleared(tmp_path):
+    src = _make_pptx_with_image(tmp_path)
+    record = ImageRecord(
+        id="abc", source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"", recognition_bytes=b"",
+        is_chemical=True,
+        approved_value="",
+    )
+    out = write([record], src, Config(output_mode="new_file"))
+    prs = Presentation(str(out))
+    shape = list(prs.slides[0].shapes)[0]
+    assert shape.element.nvPicPr.cNvPr.get("descr") == ""
+
+
+def test_writer_docx_writes_empty_alt_text_when_cleared(tmp_path):
+    src = _make_docx_with_image(tmp_path)
+    record = ImageRecord(
+        id="abc", source_ref="image 1",
+        thumbnail_bytes=b"", recognition_bytes=b"",
+        is_chemical=True,
+        approved_value="",
+    )
+    out = write([record], src, Config(output_mode="new_file"))
+    assert any(dp.get("descr") == "" for dp in _docx_doc_prs(out))
+
+
 def test_writer_docx_skips_non_chemical(tmp_path):
     src = _make_docx_with_image(tmp_path)
     record = ImageRecord(
