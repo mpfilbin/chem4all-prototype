@@ -45,6 +45,19 @@ def test_identify_button_disabled_when_included_row_has_no_types():
     assert window._error_banner.isVisible() is True
 
 
+def test_identify_button_enabled_with_only_decorative_checked():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    window.show()
+    row = window._rows[0]
+    row._smiles_check.setChecked(False)
+    assert window._identify_btn.isEnabled() is False  # sanity check: no types yet
+
+    row._decorative_check.setChecked(True)
+
+    assert window._identify_btn.isEnabled() is True
+    assert window._error_banner.isVisible() is False
+
+
 def test_identify_button_enabled_when_all_included_rows_have_types():
     window = SelectionWindow(
         [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
