@@ -26,6 +26,7 @@ def _make_record(id="r1", **kwargs):
 def test_record_row_locked_while_not_done():
     record = _make_record()
     row = _RecordRow(record, done=False)
+    row.show()
     assert row._value_field.isReadOnly() is True
     assert row._value_field.toPlainText() == ""
     assert row._restore_btn.isVisible() is False
