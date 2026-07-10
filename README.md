@@ -50,9 +50,9 @@ After a file is opened and its images extracted, the Select Images screen lists 
 
 <img src="docs/images/select-images-screen.png" alt="chem4all Select Images screen, showing extracted images with checkboxes and SMILES/IUPAC Name/Common Name/Describe Image checkboxes for each, with more than one prediction type selectable per image" width="500">
 
-While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish. Each prediction is shown in an editable text box — type directly in it to override the prediction, or clear it to exclude that image. A **Restore predicted value** button appears whenever you've changed a field, letting you undo back to the original prediction:
+While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish; each image's field stays read-only until all of its requested predictions have returned. Once ready, each image's editable text box shows every requested prediction on its own line — type directly in it to override the value(s), or clear it to exclude that image. A **Restore predicted value** button appears whenever you've changed a field, letting you undo back to the original prediction(s):
 
-<img src="docs/images/review-screen-editing.png" alt="chem4all Review screen showing an editable IUPAC name field and two editable image description fields, one of which has been modified and shows a Restore predicted value button" width="500">
+<img src="docs/images/review-screen-editing.png" alt="chem4all Review screen showing multiple prediction results per image — SMILES, an IUPAC-style name, and a common name listed together for one image — each in one editable text box, with a Restore predicted value button shown for an edited image description field" width="500">
 
 Once you accept the results, chem4all confirms where the accessible file was written and offers to open it directly:
 
@@ -151,7 +151,7 @@ chem4all
 
 Uncheck an image to exclude it from processing. Each included image needs at least one prediction type checked, or an error banner blocks the button. Click **Identify Selected** when ready.
 
-**Review** — each image is shown with its predicted result in an editable text box. Leave it as-is to accept the prediction, edit it to override the value, or clear it to exclude that image; a **Restore predicted value** button lets you undo an edit back to the original prediction. Use **Previous / Next** to page through results (5 per page by default) — edits persist as you navigate. Click **Accept & Finish** on the last page to write alt-text back to the document.
+**Review** — each image is shown with its predicted result(s) in one editable text box, one prediction per line if more than one type was requested; the box stays read-only until all of that image's predictions have returned. Leave it as-is to accept the prediction, edit it to override the value, or clear it to exclude that image; a **Restore predicted value** button lets you undo an edit back to the original prediction(s). Use **Previous / Next** to page through results (5 per page by default) — edits persist as you navigate. Click **Accept & Finish** on the last page to write alt-text back to the document.
 
 ### CLI
 
