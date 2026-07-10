@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from config import Config
 from models.image_record import ImageRecord
-from gui.widgets import ThumbnailLabel
+from gui.widgets import ThumbnailLabel, HoverHighlightMixin
 
 
 class SelectionWindow(QWidget):
@@ -124,7 +124,7 @@ class SelectionWindow(QWidget):
         self._review_window.activateWindow()
 
 
-class _SelectionRow(QFrame):
+class _SelectionRow(HoverHighlightMixin, QFrame):
     def __init__(self, record: ImageRecord) -> None:
         super().__init__()
         self.record = record
