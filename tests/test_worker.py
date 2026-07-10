@@ -119,3 +119,14 @@ def test_worker_does_not_process_decorative_record(monkeypatch):
     assert record.description is None
     assert len(ready_records) == 1
     assert ready_records[0] is record
+
+
+def test_worker_emits_status_for_decorative_record():
+    record = _make_record(prediction_types=["decorative"])
+    statuses = []
+    worker = RecognizerWorker([record], Config())
+    worker.status.connect(statuses.append)
+    worker.run()
+
+    assert len(statuses) == 1
+    assert "slide 1, shape 1" in statuses[0]
