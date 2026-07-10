@@ -33,7 +33,7 @@ def test_worker_logs_recognizing_and_result(monkeypatch, caplog):
 
 def test_worker_logs_iupac_lookup(monkeypatch, caplog):
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
-    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles, api_key: "benzene")
+    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles, api_key, image_bytes=None: "benzene")
     caplog.set_level(logging.DEBUG, logger="gui.worker")
 
     worker = RecognizerWorker([_make_record(prediction_types=["iupac"])], Config())
@@ -44,9 +44,23 @@ def test_worker_logs_iupac_lookup(monkeypatch, caplog):
     assert any(m.startswith("slide 1, shape 1 -> 'benzene'") for m in messages)
 
 
+def test_worker_passes_image_bytes_to_iupac_lookup(monkeypatch):
+    monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
+    calls = []
+    monkeypatch.setattr(
+        "pipeline.namer.lookup_iupac",
+        lambda smiles, api_key, image_bytes=None: calls.append(image_bytes) or "benzene",
+    )
+
+    worker = RecognizerWorker([_make_record(prediction_types=["iupac"])], Config())
+    worker.run()
+
+    assert calls == [b"fake_image"]
+
+
 def test_worker_logs_trivial_lookup(monkeypatch, caplog):
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
-    monkeypatch.setattr("pipeline.namer.lookup_trivial_name", lambda smiles, api_key: "benzene")
+    monkeypatch.setattr("pipeline.namer.lookup_trivial_name", lambda smiles, api_key, image_bytes=None: "benzene")
     caplog.set_level(logging.DEBUG, logger="gui.worker")
 
     worker = RecognizerWorker([_make_record(prediction_types=["trivial"])], Config())
@@ -55,6 +69,20 @@ def test_worker_logs_trivial_lookup(monkeypatch, caplog):
     messages = [r.message for r in caplog.records]
     assert "Looking up common name for slide 1, shape 1..." in messages
     assert any(m.startswith("slide 1, shape 1 -> 'benzene'") for m in messages)
+
+
+def test_worker_passes_image_bytes_to_trivial_lookup(monkeypatch):
+    monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
+    calls = []
+    monkeypatch.setattr(
+        "pipeline.namer.lookup_trivial_name",
+        lambda smiles, api_key, image_bytes=None: calls.append(image_bytes) or "benzene",
+    )
+
+    worker = RecognizerWorker([_make_record(prediction_types=["trivial"])], Config())
+    worker.run()
+
+    assert calls == [b"fake_image"]
 
 
 def test_worker_logs_description(monkeypatch, caplog):
@@ -74,7 +102,7 @@ def test_worker_logs_description(monkeypatch, caplog):
 
 def test_worker_handles_multiple_prediction_types_in_one_record(monkeypatch, caplog):
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
-    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles, api_key: "benzene")
+    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles, api_key, image_bytes=None: "benzene")
     monkeypatch.setattr(
         "pipeline.describer.describe_image",
         lambda img_bytes, api_key: "A benzene ring diagram.",
