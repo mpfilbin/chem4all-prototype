@@ -63,8 +63,10 @@ def result_lines(self) -> list[str]:
     ]
 ```
 
-The Review view joins `result_lines()` with `"\n"` for display — raw values,
-no per-line labels (per user's choice).
+The Review view joins `result_lines()` with `"\n\n"` (a blank line between
+each prediction's value) for display — raw values, no per-line labels (per
+user's choice). The blank-line separator keeps entries visually distinct
+when a value like the image description wraps across multiple lines.
 
 `to_review_dict`/`from_review_dict` serialize `prediction_types` as a JSON
 list under the same key name shape convention (`"prediction_types": [...]`).
@@ -160,7 +162,7 @@ unlock that row's field.
 - **`done=False`**: `QTextEdit` constructed with `setReadOnly(True)`,
   placeholder "Awaiting result…", restore button hidden, `_edited=False`.
 - **`done=True`**: `QTextEdit` editable, initial text is `approved_value` if
-  set else `"\n".join(record.result_lines())`.
+  set else `"\n\n".join(record.result_lines())`.
 
 `_render_page` passes `record.id in self._done_ids` when constructing each
 row.
