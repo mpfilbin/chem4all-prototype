@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 _TYPE_ORDER = ["smiles", "iupac", "trivial", "description"]
+_DECORATIVE_TEXT = "Decorative Image"
 
 
 @dataclass
@@ -20,6 +21,8 @@ class ImageRecord:
     is_chemical: bool | None = None
 
     def result_lines(self) -> list[str]:
+        if "decorative" in self.prediction_types:
+            return [_DECORATIVE_TEXT]
         field_for_type = {
             "smiles": self.predicted_smiles,
             "iupac": self.iupac_name,

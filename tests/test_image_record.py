@@ -191,3 +191,14 @@ def test_result_lines_returns_multiple_types_in_fixed_order():
         "benzene",
         "A benzene ring diagram.",
     ]
+
+
+def test_result_lines_returns_decorative_placeholder():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        prediction_types=["decorative"],
+    )
+    assert record.result_lines() == ["Decorative Image"]
