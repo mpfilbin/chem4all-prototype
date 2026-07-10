@@ -4,7 +4,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QCheckBox, QFrame, QSizePolicy,
-    QRadioButton, QButtonGroup,
 )
 from config import Config
 from models.image_record import ImageRecord
@@ -33,6 +32,15 @@ class SelectionWindow(QWidget):
         header.setWordWrap(True)
         layout.addWidget(header)
 
+        self._error_banner = QLabel()
+        self._error_banner.setWordWrap(True)
+        self._error_banner.setStyleSheet(
+            "QLabel { background: #f8d7da; color: #721c24; "
+            "padding: 6px 10px; border-radius: 4px; }"
+        )
+        self._error_banner.setVisible(False)
+        layout.addWidget(self._error_banner)
+
         sel_row = QHBoxLayout()
         all_btn = QPushButton("Select All")
         none_btn = QPushButton("Select None")
@@ -51,7 +59,7 @@ class SelectionWindow(QWidget):
 
         for record in records:
             row = _SelectionRow(record)
-            row.checkbox.stateChanged.connect(self._update_identify_btn)
+            row.connect_changed(self._update_identify_btn)
             self._rows.append(row)
             container_layout.addWidget(row)
 
@@ -77,8 +85,20 @@ class SelectionWindow(QWidget):
 
     def _update_identify_btn(self) -> None:
         n = sum(1 for row in self._rows if row.checkbox.isChecked())
+        has_invalid_row = any(
+            row.checkbox.isChecked() and not row.prediction_types
+            for row in self._rows
+        )
+        if has_invalid_row:
+            self._error_banner.setText(
+                "Each selected image needs at least one prediction type checked."
+            )
+            self._error_banner.setVisible(True)
+            self._identify_btn.setEnabled(False)
+        else:
+            self._error_banner.setVisible(False)
+            self._identify_btn.setEnabled(n > 0)
         self._identify_btn.setText(f"Identify Selected ({n})  →")
-        self._identify_btn.setEnabled(n > 0)
 
     def _start_identification(self) -> None:
         from gui.review_window import ReviewWindow
@@ -87,7 +107,7 @@ class SelectionWindow(QWidget):
         selected = []
         for row in self._rows:
             if row.checkbox.isChecked():
-                row.record.prediction_type = row.prediction_type
+                row.record.prediction_types = row.prediction_types
                 selected.append(row.record)
 
         self._review_window = ReviewWindow(selected, self._config, self._source_path)
@@ -127,22 +147,30 @@ class _SelectionRow(QFrame):
         ref.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout.addWidget(ref)
 
-        self._smiles_radio = QRadioButton("SMILES")
-        self._iupac_radio = QRadioButton("IUPAC Name")
-        self._trivial_radio = QRadioButton("Common Name")
-        self._describe_radio = QRadioButton("Describe Image")
-        self._type_group = QButtonGroup(self)
-        for btn in (self._smiles_radio, self._iupac_radio, self._trivial_radio, self._describe_radio):
-            self._type_group.addButton(btn)
-            layout.addWidget(btn)
-        self._smiles_radio.setChecked(True)
+        self._smiles_check = QCheckBox("SMILES")
+        self._iupac_check = QCheckBox("IUPAC Name")
+        self._trivial_check = QCheckBox("Common Name")
+        self._describe_check = QCheckBox("Describe Image")
+        self._smiles_check.setChecked(True)
+        for box in (self._smiles_check, self._iupac_check, self._trivial_check, self._describe_check):
+            layout.addWidget(box)
 
     @property
-    def prediction_type(self) -> str:
-        if self._iupac_radio.isChecked():
-            return "iupac"
-        if self._trivial_radio.isChecked():
-            return "trivial"
-        if self._describe_radio.isChecked():
-            return "description"
-        return "smiles"
+    def prediction_types(self) -> list[str]:
+        types = []
+        if self._smiles_check.isChecked():
+            types.append("smiles")
+        if self._iupac_check.isChecked():
+            types.append("iupac")
+        if self._trivial_check.isChecked():
+            types.append("trivial")
+        if self._describe_check.isChecked():
+            types.append("description")
+        return types
+
+    def connect_changed(self, slot) -> None:
+        self.checkbox.stateChanged.connect(slot)
+        self._smiles_check.stateChanged.connect(slot)
+        self._iupac_check.stateChanged.connect(slot)
+        self._trivial_check.stateChanged.connect(slot)
+        self._describe_check.stateChanged.connect(slot)

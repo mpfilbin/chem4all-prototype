@@ -1,0 +1,69 @@
+from __future__ import annotations
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import sys
+from PyQt6.QtWidgets import QApplication
+
+from config import Config
+from models.image_record import ImageRecord
+from gui.review_window import ReviewWindow, _RecordRow
+
+_app = QApplication.instance() or QApplication(sys.argv)
+
+
+def _make_record(id="r1", **kwargs):
+    return ImageRecord(
+        id=id,
+        source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        **kwargs,
+    )
+
+
+def test_record_row_locked_while_not_done():
+    record = _make_record()
+    row = _RecordRow(record, done=False)
+    row.show()
+    assert row._value_field.isReadOnly() is True
+    assert row._value_field.toPlainText() == ""
+    assert row._restore_btn.isVisible() is False
+
+
+def test_record_row_editable_and_populated_when_done():
+    record = _make_record(
+        predicted_smiles="CCO",
+        iupac_name="ethanol",
+        prediction_types=["smiles", "iupac"],
+    )
+    row = _RecordRow(record, done=True)
+    assert row._value_field.isReadOnly() is False
+    assert row._value_field.toPlainText() == "CCO\n\nethanol"
+
+
+def test_update_record_unlocks_row_and_fills_composed_text():
+    record = _make_record(prediction_types=["smiles", "description"])
+    row = _RecordRow(record, done=False)
+
+    record.predicted_smiles = "CCO"
+    record.description = "A clear liquid in a flask."
+    row.update_record(record)
+
+    assert row._value_field.isReadOnly() is False
+    assert row._value_field.toPlainText() == "CCO\n\nA clear liquid in a flask."
+
+
+def test_review_window_on_record_ready_unlocks_visible_row(tmp_path):
+    record = _make_record(prediction_types=["smiles"])
+    window = ReviewWindow([record], Config(), tmp_path / "sample.pptx")
+    row = window._rows[0]
+    assert row._value_field.isReadOnly() is True
+
+    record.predicted_smiles = "CCO"
+    window.on_record_ready(record)
+
+    assert record.id in window._done_ids
+    assert row._value_field.isReadOnly() is False
+    assert row._value_field.toPlainText() == "CCO"
