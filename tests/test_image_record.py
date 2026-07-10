@@ -1,4 +1,3 @@
-import json
 from models.image_record import ImageRecord
 
 
@@ -16,7 +15,7 @@ def test_image_record_defaults():
     assert record.approved_value is None
     assert record.is_chemical is None
     assert record.description is None
-    assert record.prediction_type == "smiles"
+    assert record.prediction_types == ["smiles"]
 
 
 def test_image_record_to_review_dict_excludes_bytes():
@@ -42,7 +41,7 @@ def test_image_record_to_review_dict_excludes_bytes():
     assert d["approved_value"] == "C1=CC=CC=C1"
     assert d["is_chemical"] is True
     assert d["description"] is None
-    assert d["prediction_type"] == "smiles"
+    assert d["prediction_types"] == ["smiles"]
 
 
 def test_image_record_from_review_dict_roundtrip():
@@ -67,64 +66,64 @@ def test_image_record_from_review_dict_roundtrip():
     assert restored.thumbnail_bytes == b""
     assert restored.recognition_bytes == b""
     assert restored.description is None
-    assert restored.prediction_type == "smiles"
+    assert restored.prediction_types == ["smiles"]
 
 
-def test_image_record_prediction_type_default():
+def test_image_record_prediction_types_default():
     record = ImageRecord(
         id="x",
         source_ref="slide 1, shape 1",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
     )
-    assert record.prediction_type == "smiles"
+    assert record.prediction_types == ["smiles"]
 
 
-def test_result_value_returns_smiles_by_default():
+def test_result_lines_returns_smiles_by_default():
     record = ImageRecord(
         id="x",
         source_ref="s",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
         predicted_smiles="C1=CC=CC=C1",
-        prediction_type="smiles",
+        prediction_types=["smiles"],
     )
-    assert record.result_value() == "C1=CC=CC=C1"
+    assert record.result_lines() == ["C1=CC=CC=C1"]
 
 
-def test_result_value_returns_iupac_name():
+def test_result_lines_returns_iupac_name():
     record = ImageRecord(
         id="x",
         source_ref="s",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
         iupac_name="benzene",
-        prediction_type="iupac",
+        prediction_types=["iupac"],
     )
-    assert record.result_value() == "benzene"
+    assert record.result_lines() == ["benzene"]
 
 
-def test_result_value_returns_trivial_name():
+def test_result_lines_returns_trivial_name():
     record = ImageRecord(
         id="x",
         source_ref="s",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
         trivial_name="benzene",
-        prediction_type="trivial",
+        prediction_types=["trivial"],
     )
-    assert record.result_value() == "benzene"
+    assert record.result_lines() == ["benzene"]
 
 
-def test_result_value_returns_none_when_name_not_yet_loaded():
+def test_result_lines_skips_type_when_name_not_yet_loaded():
     record = ImageRecord(
         id="x",
         source_ref="s",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
-        prediction_type="iupac",  # iupac_name not set yet
+        prediction_types=["iupac"],  # iupac_name not set yet
     )
-    assert record.result_value() is None
+    assert record.result_lines() == []
 
 
 def test_image_record_description_default():
@@ -137,24 +136,44 @@ def test_image_record_description_default():
     assert record.description is None
 
 
-def test_result_value_returns_description():
+def test_result_lines_returns_description():
     record = ImageRecord(
         id="x",
         source_ref="s",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
         description="Diagram of ATP synthase embedded in the inner mitochondrial membrane.",
-        prediction_type="description",
+        prediction_types=["description"],
     )
-    assert record.result_value() == "Diagram of ATP synthase embedded in the inner mitochondrial membrane."
+    assert record.result_lines() == [
+        "Diagram of ATP synthase embedded in the inner mitochondrial membrane."
+    ]
 
 
-def test_result_value_returns_none_when_description_not_yet_loaded():
+def test_result_lines_skips_description_when_not_yet_loaded():
     record = ImageRecord(
         id="x",
         source_ref="s",
         thumbnail_bytes=b"",
         recognition_bytes=b"",
-        prediction_type="description",  # description not set yet
+        prediction_types=["description"],  # description not set yet
     )
-    assert record.result_value() is None
+    assert record.result_lines() == []
+
+
+def test_result_lines_returns_multiple_types_in_fixed_order():
+    record = ImageRecord(
+        id="x",
+        source_ref="s",
+        thumbnail_bytes=b"",
+        recognition_bytes=b"",
+        predicted_smiles="C1=CC=CC=C1",
+        iupac_name="benzene",
+        description="A benzene ring diagram.",
+        prediction_types=["description", "smiles", "iupac"],  # list order shouldn't matter
+    )
+    assert record.result_lines() == [
+        "C1=CC=CC=C1",
+        "benzene",
+        "A benzene ring diagram.",
+    ]
