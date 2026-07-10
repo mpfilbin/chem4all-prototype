@@ -50,9 +50,9 @@ After a file is opened and its images extracted, the Select Images screen lists 
 
 <img src="docs/images/select-images-screen.png" alt="chem4all Select Images screen, showing extracted images with checkboxes and SMILES/IUPAC Name/Common Name radio buttons for each" width="500">
 
-While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish — each with a custom override field in case you want to edit or replace a prediction:
+While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish. Each prediction is shown in an editable text box — type directly in it to override the prediction, or clear it to exclude that image. A **Restore predicted value** button appears whenever you've changed a field, letting you undo back to the original prediction:
 
-<img src="docs/images/review-screen-processing.png" alt="chem4all Review screen while identification is still in progress, showing a progress banner and predicted image descriptions with custom override fields" width="500">
+<img src="docs/images/review-screen-editing.png" alt="chem4all Review screen showing an editable IUPAC name field and two editable image description fields, one of which has been modified and shows a Restore predicted value button" width="500">
 
 Once you accept the results, chem4all confirms where the accessible file was written and offers to open it directly:
 
@@ -151,7 +151,7 @@ chem4all
 
 Uncheck an image to exclude it from processing. Click **Start Identification** when ready.
 
-**Review** — each image is shown with the predicted result and a custom override field. Leave the override blank to accept the prediction, or type your own value. Use **Previous / Next** to page through results (5 per page by default). Click **Accept & Finish** on the last page to write alt-text back to the document.
+**Review** — each image is shown with its predicted result in an editable text box. Leave it as-is to accept the prediction, edit it to override the value, or clear it to exclude that image; a **Restore predicted value** button lets you undo an edit back to the original prediction. Use **Previous / Next** to page through results (5 per page by default) — edits persist as you navigate. Click **Accept & Finish** on the last page to write alt-text back to the document.
 
 ### CLI
 
