@@ -48,6 +48,7 @@ class _RecordRow(QWidget):
         self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
         self._value_field.setPlainText(initial_text)
         self._value_field.textChanged.connect(self._on_text_changed)
+        self._edited = initial_text != (record.result_value() or "")
         info.addWidget(self._value_field)
 
         self._restore_btn = QPushButton("↺ Restore predicted value")
@@ -70,7 +71,7 @@ class _RecordRow(QWidget):
 
     def _update_restore_visibility(self) -> None:
         predicted = self._record.result_value() or ""
-        self._restore_btn.setVisible(self._value_field.toPlainText() != predicted)
+        self._restore_btn.setVisible(self._value_field.toPlainText().strip() != predicted)
 
     def _restore_predicted(self) -> None:
         self._set_field_text(self._record.result_value() or "")
