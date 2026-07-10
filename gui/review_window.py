@@ -13,17 +13,12 @@ from models.image_record import ImageRecord
 from pipeline.writer import write
 from gui.widgets import ThumbnailLabel
 
-_TYPE_LABELS = {
-    "iupac": "IUPAC Name:",
-    "trivial": "Common Name:",
-    "description": "Image Description:",
-}
-
 
 class _RecordRow(QWidget):
-    def __init__(self, record: ImageRecord, parent=None):
+    def __init__(self, record: ImageRecord, done: bool, parent=None):
         super().__init__(parent)
         self._record = record
+        self._done = done
         self._edited = False
 
         layout = QHBoxLayout()
@@ -34,21 +29,23 @@ class _RecordRow(QWidget):
         info = QVBoxLayout()
         info.addWidget(QLabel(record.source_ref))
 
-        info.addWidget(QLabel(_TYPE_LABELS.get(record.prediction_type, "Predicted SMILES:")))
-        initial_text = (
-            record.approved_value
-            if record.approved_value is not None
-            else (record.result_value() or "")
-        )
+        info.addWidget(QLabel("Prediction Results:"))
         self._value_field = QTextEdit()
         self._value_field.setPlaceholderText("Awaiting result…")
         self._value_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         metrics = self._value_field.fontMetrics()
         frame = self._value_field.frameWidth() * 2
         self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
-        self._value_field.setPlainText(initial_text)
+
+        if done:
+            composed = "\n\n".join(record.result_lines())
+            initial_text = record.approved_value if record.approved_value is not None else composed
+            self._value_field.setPlainText(initial_text)
+            self._edited = initial_text != composed
+        else:
+            self._value_field.setReadOnly(True)
+
         self._value_field.textChanged.connect(self._on_text_changed)
-        self._edited = initial_text != (record.result_value() or "")
         info.addWidget(self._value_field)
 
         self._restore_btn = QPushButton("↺ Restore predicted value")
@@ -70,18 +67,25 @@ class _RecordRow(QWidget):
         self._update_restore_visibility()
 
     def _update_restore_visibility(self) -> None:
-        predicted = self._record.result_value() or ""
+        if not self._done:
+            self._restore_btn.setVisible(False)
+            return
+        predicted = "\n\n".join(self._record.result_lines())
         self._restore_btn.setVisible(self._value_field.toPlainText().strip() != predicted)
 
     def _restore_predicted(self) -> None:
-        self._set_field_text(self._record.result_value() or "")
+        self._set_field_text("\n\n".join(self._record.result_lines()))
         self._edited = False
 
     def update_record(self, record: ImageRecord) -> None:
         self._record = record
         self._thumb.update_record(record)
+        was_done = self._done
+        self._done = True
+        if not was_done:
+            self._value_field.setReadOnly(False)
         if not self._edited:
-            self._set_field_text(record.result_value() or "")
+            self._set_field_text("\n\n".join(record.result_lines()))
 
     def apply_to_record(self) -> None:
         value = self._value_field.toPlainText().strip()
@@ -100,6 +104,7 @@ class ReviewWindow(QWidget):
         self._recognized = 0
         self._error_count = 0
         self._recognition_done = False
+        self._done_ids: set[str] = set()
 
         self.setWindowTitle(f"Review — {source_path.name}")
         self.setMinimumWidth(700)
@@ -181,7 +186,7 @@ class ReviewWindow(QWidget):
                 item.widget().deleteLater()
         self._rows = []
         for record in self._page_records():
-            row = _RecordRow(record)
+            row = _RecordRow(record, done=record.id in self._done_ids)
             self._rows.append(row)
             self._grid.addWidget(row)
         self._page_label.setText(f"Page {self._page + 1} of {self._total_pages()}")
@@ -228,6 +233,7 @@ class ReviewWindow(QWidget):
 
     def on_record_ready(self, record: ImageRecord) -> None:
         self._recognized += 1
+        self._done_ids.add(record.id)
         for row in self._rows:
             if row._record.id == record.id:
                 row.update_record(record)
