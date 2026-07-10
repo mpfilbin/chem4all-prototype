@@ -84,7 +84,8 @@ def test_lookup_iupac_system_prompt_forbids_trivial_name_fallback(monkeypatch):
         lookup_iupac("c1ccccc1", "test-key")
     payload = mock_post.call_args.kwargs["json"]
     system_content = payload["messages"][0]["content"].lower()
-    assert "trivial" in system_content or "common" in system_content or "trade" in system_content
+    assert "systematic" in system_content
+    assert "even if you recognize" in system_content
 
 
 # --- lookup_trivial_name ---

@@ -21,7 +21,7 @@ _SYSTEM_TRIVIAL = (
 )
 
 
-def _build_content(smiles: str, image_bytes: bytes | None):
+def _build_content(smiles: str, image_bytes: bytes | None) -> str | list[dict]:
     if not image_bytes:
         return smiles
     b64 = base64.b64encode(image_bytes).decode()
