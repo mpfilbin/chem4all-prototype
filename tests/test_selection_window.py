@@ -109,3 +109,33 @@ def test_start_identification_sets_prediction_types_on_selected_records(monkeypa
     window._start_identification()
 
     assert record.prediction_types == ["smiles", "iupac"]
+
+
+def test_decorative_checkbox_disables_other_prediction_checks():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+
+    row._decorative_check.setChecked(True)
+
+    assert row._smiles_check.isChecked() is False
+    assert row._smiles_check.isEnabled() is False
+    assert row._iupac_check.isEnabled() is False
+    assert row._trivial_check.isEnabled() is False
+    assert row._describe_check.isEnabled() is False
+    assert row.prediction_types == ["decorative"]
+
+
+def test_unchecking_decorative_restores_prior_checkbox_state():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._iupac_check.setChecked(True)  # smiles True (default), iupac True
+
+    row._decorative_check.setChecked(True)
+    row._decorative_check.setChecked(False)
+
+    assert row._smiles_check.isChecked() is True
+    assert row._smiles_check.isEnabled() is True
+    assert row._iupac_check.isChecked() is True
+    assert row._trivial_check.isChecked() is False
+    assert row._describe_check.isChecked() is False
+    assert row.prediction_types == ["smiles", "iupac"]
