@@ -2,8 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QCheckBox, QFrame, QSizePolicy,
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QCheckBox, QFrame, QSizePolicy, QStyle,
 )
 from config import Config
 from models.image_record import ImageRecord
@@ -91,6 +91,10 @@ class SelectionWindow(QWidget):
         ("description", "Toggle All Describe", "Describe Image"),
     ]
     _DIVIDER_GAP = 11  # tuned in Task 5: matches the row's measured divider width (3px) + spacing (8px)
+    # Fine-tune added to PM_ScrollBarExtent for the trailing spacer (Task 6): covers the
+    # residual gap between the style's generic scrollbar-width hint and the scrollbar
+    # instance's actual rendered width (plus the scroll frame border), measured empirically.
+    _TRAILING_SPACER_ADJUST = 3
 
     def _build_toggle_row(self) -> QHBoxLayout:
         toggle_row = QHBoxLayout()
@@ -123,6 +127,17 @@ class SelectionWindow(QWidget):
         toggle_row.addSpacing(self._DIVIDER_GAP)
         for pred_type, button in buttons[1:]:
             toggle_row.addWidget(button)
+
+        # The row's checkboxes live inside a QScrollArea whose vertical scrollbar
+        # is forced always-on (see SelectionWindow.__init__), which narrows each
+        # row's available width relative to this header row (not scrolled). Add a
+        # trailing spacer matching the scrollbar's rendered width so the header's
+        # fixed-width content is deducted by the same amount, keeping the header
+        # buttons aligned with the checkbox columns below them.
+        scrollbar_extent = QApplication.style().pixelMetric(
+            QStyle.PixelMetric.PM_ScrollBarExtent
+        )
+        toggle_row.addSpacing(scrollbar_extent + self._TRAILING_SPACER_ADJUST)
 
         for pred_type, button in buttons:
             button.clicked.connect(lambda _checked, t=pred_type: self._toggle_all_type(t))
