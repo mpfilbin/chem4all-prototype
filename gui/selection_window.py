@@ -223,6 +223,10 @@ class _SelectionRow(HoverHighlightMixin, QFrame):
             self._decorative_check.setChecked(False)
         getattr(self, self._TYPE_ATTR[pred_type]).setChecked(checked)
 
+    def apply_column_widths(self, widths: dict[str, int]) -> None:
+        for pred_type, width in widths.items():
+            getattr(self, self._TYPE_ATTR[pred_type]).setFixedWidth(width)
+
     def connect_changed(self, slot) -> None:
         self.checkbox.stateChanged.connect(slot)
         self._decorative_check.stateChanged.connect(slot)

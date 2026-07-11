@@ -305,3 +305,15 @@ def test_toggle_all_type_noop_with_no_rows():
     window = SelectionWindow([], Config(), Path("dummy.pptx"))
 
     window._toggle_all_type("smiles")  # must not raise
+
+
+def test_apply_column_widths_sets_fixed_checkbox_widths():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+
+    row.apply_column_widths({"smiles": 150, "decorative": 120})
+
+    assert row._smiles_check.minimumWidth() == 150
+    assert row._smiles_check.maximumWidth() == 150
+    assert row._decorative_check.minimumWidth() == 120
+    assert row._decorative_check.maximumWidth() == 120
