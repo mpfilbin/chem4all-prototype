@@ -91,7 +91,7 @@ class SelectionWindow(QWidget):
         ("description", "Toggle All Describe", "Describe Image"),
     ]
     _DIVIDER_GAP = 11  # tuned in Task 5: matches the row's measured divider width (3px) + spacing (8px)
-    # Fine-tune added to PM_ScrollBarExtent for the trailing spacer (Task 6): covers the
+    # Fine-tune added to PM_ScrollBarExtent for the trailing spacer below: covers the
     # residual gap between the style's generic scrollbar-width hint and the scrollbar
     # instance's actual rendered width (plus the scroll frame border), measured empirically.
     _TRAILING_SPACER_ADJUST = 3
