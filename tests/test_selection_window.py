@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from PyQt6.QtCore import QEvent, QPointF
 from PyQt6.QtGui import QEnterEvent
-from PyQt6.QtWidgets import QApplication, QPushButton
+from PyQt6.QtWidgets import QApplication, QPushButton, QScrollArea
 
 from config import Config
 from models.image_record import ImageRecord
@@ -358,3 +358,35 @@ def test_toggle_all_buttons_widen_checkbox_columns_to_match_button_width():
     # shown/laid out yet — setFixedWidth guarantees minimumWidth immediately,
     # but actual geometry only updates on a layout pass.
     assert row._smiles_check.minimumWidth() == button.minimumWidth()
+
+
+def test_window_minimum_width_covers_row_minimum_size_hint():
+    # Regression test for a real bug: the window's minimum width (was 520) was
+    # narrower than the row content's minimum size hint (~902px, driven by the
+    # wide checkbox columns matched to "Toggle All X" button text), so the
+    # window could open too narrow, forcing the row to overflow its scroll
+    # viewport and breaking the header/checkbox alignment fix. This asserts
+    # the window can never open narrower than its own row content needs,
+    # regardless of future column-width or minimum-width changes.
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+
+    assert window.minimumWidth() >= row.minimumSizeHint().width()
+
+
+def test_no_horizontal_scrollbar_at_default_size():
+    # Regression test: previously the window opened at its natural sizeHint()
+    # (~845px), narrower than the row's minimum width (~902px), forcing a
+    # horizontal scrollbar in the QScrollArea. This matches real usage in
+    # gui/file_picker.py, which calls show() with no explicit resize().
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    window.show()
+    # Pump the event queue so the scroll area's layout/resize pass (which
+    # determines scrollbar visibility) actually runs before we inspect it —
+    # under a real event loop (app.exec()) this happens automatically after
+    # show(); here it must be driven manually.
+    QApplication.processEvents()
+
+    scroll = window.findChild(QScrollArea)
+
+    assert scroll.horizontalScrollBar().isVisible() is False
