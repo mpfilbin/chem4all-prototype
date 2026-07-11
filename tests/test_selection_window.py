@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from PyQt6.QtCore import QEvent, QPointF
 from PyQt6.QtGui import QEnterEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QPushButton, QScrollArea
 
 from config import Config
 from models.image_record import ImageRecord
@@ -204,3 +204,189 @@ def test_unchecking_decorative_restores_prior_checkbox_state():
     assert row._trivial_check.isChecked() is False
     assert row._describe_check.isChecked() is False
     assert row.prediction_types == ["smiles", "iupac"]
+
+
+def test_set_type_checked_decorative_sets_decorative_checkbox():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+
+    row.set_type_checked("decorative", True)
+
+    assert row._decorative_check.isChecked() is True
+    assert row.is_type_checked("decorative") is True
+
+
+def test_set_type_checked_non_decorative_clears_decorative_first():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    assert row._decorative_check.isChecked() is True  # default state
+
+    row.set_type_checked("smiles", True)
+
+    assert row._decorative_check.isChecked() is False
+    assert row._smiles_check.isChecked() is True
+    assert row.is_type_checked("smiles") is True
+
+
+def test_set_type_checked_false_unchecks_without_touching_decorative():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    row._smiles_check.setChecked(True)
+
+    row.set_type_checked("smiles", False)
+
+    assert row._smiles_check.isChecked() is False
+    assert row._decorative_check.isChecked() is False
+    assert row.is_type_checked("smiles") is False
+
+
+def test_toggle_all_type_checks_all_rows_when_none_checked():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+
+    window._toggle_all_type("smiles")
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is True
+        assert row.is_type_checked("decorative") is False
+
+
+def test_toggle_all_type_unchecks_all_rows_when_all_checked():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+        row._smiles_check.setChecked(True)
+
+    window._toggle_all_type("smiles")
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is False
+
+
+def test_toggle_all_type_checks_all_rows_when_mixed():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    window._rows[0]._decorative_check.setChecked(False)
+    window._rows[0]._smiles_check.setChecked(True)
+    # window._rows[1] stays decorative-only (smiles unchecked) -> mixed state
+
+    window._toggle_all_type("smiles")
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is True
+        assert row.is_type_checked("decorative") is False
+
+
+def test_toggle_all_type_decorative_checks_all_rows_and_clears_others():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+        row._smiles_check.setChecked(True)
+
+    window._toggle_all_type("decorative")
+
+    for row in window._rows:
+        assert row.is_type_checked("decorative") is True
+        assert row._smiles_check.isChecked() is False
+        assert row._smiles_check.isEnabled() is False
+
+
+def test_toggle_all_type_noop_with_no_rows():
+    window = SelectionWindow([], Config(), Path("dummy.pptx"))
+
+    window._toggle_all_type("smiles")  # must not raise
+
+
+def test_apply_column_widths_sets_fixed_checkbox_widths():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+
+    row.apply_column_widths({"smiles": 150, "decorative": 120})
+
+    assert row._smiles_check.minimumWidth() == 150
+    assert row._smiles_check.maximumWidth() == 150
+    assert row._decorative_check.minimumWidth() == 120
+    assert row._decorative_check.maximumWidth() == 120
+
+
+def _find_button(window, text):
+    return next(b for b in window.findChildren(QPushButton) if b.text() == text)
+
+
+def test_toggle_all_smiles_button_checks_all_rows_and_clears_decorative():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+
+    _find_button(window, "Toggle All SMILES").click()
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is True
+        assert row.is_type_checked("decorative") is False
+
+
+def test_toggle_all_decorative_button_checks_all_rows():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+        row._smiles_check.setChecked(True)
+
+    _find_button(window, "Toggle All Decorative").click()
+
+    for row in window._rows:
+        assert row.is_type_checked("decorative") is True
+
+
+def test_toggle_all_buttons_widen_checkbox_columns_to_match_button_width():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    button = _find_button(window, "Toggle All SMILES")
+
+    # Compare minimumWidth (not .width()) since neither widget has been
+    # shown/laid out yet — setFixedWidth guarantees minimumWidth immediately,
+    # but actual geometry only updates on a layout pass.
+    assert row._smiles_check.minimumWidth() == button.minimumWidth()
+
+
+def test_window_minimum_width_covers_row_minimum_size_hint():
+    # Regression test for a real bug: the window's minimum width (was 520) was
+    # narrower than the row content's minimum size hint (~902px, driven by the
+    # wide checkbox columns matched to "Toggle All X" button text), so the
+    # window could open too narrow, forcing the row to overflow its scroll
+    # viewport and breaking the header/checkbox alignment fix. This asserts
+    # the window can never open narrower than its own row content needs,
+    # regardless of future column-width or minimum-width changes.
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+
+    assert window.minimumWidth() >= row.minimumSizeHint().width()
+
+
+def test_no_horizontal_scrollbar_at_default_size():
+    # Regression test: previously the window opened at its natural sizeHint()
+    # (~845px), narrower than the row's minimum width (~902px), forcing a
+    # horizontal scrollbar in the QScrollArea. This matches real usage in
+    # gui/file_picker.py, which calls show() with no explicit resize().
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    window.show()
+    # Pump the event queue so the scroll area's layout/resize pass (which
+    # determines scrollbar visibility) actually runs before we inspect it —
+    # under a real event loop (app.exec()) this happens automatically after
+    # show(); here it must be driven manually.
+    QApplication.processEvents()
+
+    scroll = window.findChild(QScrollArea)
+
+    assert scroll.horizontalScrollBar().isVisible() is False
