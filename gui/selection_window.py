@@ -25,8 +25,8 @@ class SelectionWindow(QWidget):
         # freeze at their minimum layout regardless of window width, decoupling them from
         # the header buttons above (which keep tracking window width via addStretch()) and
         # breaking the header/checkbox alignment fixed in prior tasks. Empirically confirmed
-        # (see .superpowers/sdd/task-5-report.md, Task 6 follow-up) that alignment becomes
-        # stable once viewport width >= ~950px; 980 gives a little headroom above that floor.
+        # that alignment becomes stable once viewport width >= ~950px; 980 gives a little
+        # headroom above that floor.
         self.setMinimumWidth(980)
         self.setMinimumHeight(480)
 
@@ -130,7 +130,7 @@ class SelectionWindow(QWidget):
             widths[pred_type] = width
             buttons.append((pred_type, button))
 
-        decorative_type, decorative_button = buttons[0]
+        _, decorative_button = buttons[0]
         toggle_row.addWidget(decorative_button)
         toggle_row.addSpacing(self._DIVIDER_GAP)
         for pred_type, button in buttons[1:]:
