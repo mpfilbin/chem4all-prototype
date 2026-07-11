@@ -19,7 +19,15 @@ class SelectionWindow(QWidget):
         self._rows: list[_SelectionRow] = []
 
         self.setWindowTitle(f"Select Images — {source_path.name}")
-        self.setMinimumWidth(520)
+        # Must exceed _SelectionRow.minimumSizeHint().width() (~902px, driven by the wide
+        # checkbox columns matched to the "Toggle All X" header button text) so the row
+        # never overflows its QScrollArea viewport. Below that floor the row's checkboxes
+        # freeze at their minimum layout regardless of window width, decoupling them from
+        # the header buttons above (which keep tracking window width via addStretch()) and
+        # breaking the header/checkbox alignment fixed in prior tasks. Empirically confirmed
+        # (see .superpowers/sdd/task-5-report.md, Task 6 follow-up) that alignment becomes
+        # stable once viewport width >= ~950px; 980 gives a little headroom above that floor.
+        self.setMinimumWidth(980)
         self.setMinimumHeight(480)
 
         layout = QVBoxLayout(self)
