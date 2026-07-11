@@ -204,3 +204,39 @@ def test_unchecking_decorative_restores_prior_checkbox_state():
     assert row._trivial_check.isChecked() is False
     assert row._describe_check.isChecked() is False
     assert row.prediction_types == ["smiles", "iupac"]
+
+
+def test_set_type_checked_decorative_sets_decorative_checkbox():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+
+    row.set_type_checked("decorative", True)
+
+    assert row._decorative_check.isChecked() is True
+    assert row.is_type_checked("decorative") is True
+
+
+def test_set_type_checked_non_decorative_clears_decorative_first():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    assert row._decorative_check.isChecked() is True  # default state
+
+    row.set_type_checked("smiles", True)
+
+    assert row._decorative_check.isChecked() is False
+    assert row._smiles_check.isChecked() is True
+    assert row.is_type_checked("smiles") is True
+
+
+def test_set_type_checked_false_unchecks_without_touching_decorative():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    row._decorative_check.setChecked(False)
+    row._smiles_check.setChecked(True)
+
+    row.set_type_checked("smiles", False)
+
+    assert row._smiles_check.isChecked() is False
+    assert row._decorative_check.isChecked() is False
+    assert row.is_type_checked("smiles") is False

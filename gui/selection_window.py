@@ -196,6 +196,25 @@ class _SelectionRow(HoverHighlightMixin, QFrame):
             types.append("description")
         return types
 
+    _TYPE_ATTR = {
+        "decorative": "_decorative_check",
+        "smiles": "_smiles_check",
+        "iupac": "_iupac_check",
+        "trivial": "_trivial_check",
+        "description": "_describe_check",
+    }
+
+    def is_type_checked(self, pred_type: str) -> bool:
+        return getattr(self, self._TYPE_ATTR[pred_type]).isChecked()
+
+    def set_type_checked(self, pred_type: str, checked: bool) -> None:
+        if pred_type == "decorative":
+            self._decorative_check.setChecked(checked)
+            return
+        if checked and self._decorative_check.isChecked():
+            self._decorative_check.setChecked(False)
+        getattr(self, self._TYPE_ATTR[pred_type]).setChecked(checked)
+
     def connect_changed(self, slot) -> None:
         self.checkbox.stateChanged.connect(slot)
         self._decorative_check.stateChanged.connect(slot)
