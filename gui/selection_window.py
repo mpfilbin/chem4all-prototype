@@ -53,8 +53,10 @@ class SelectionWindow(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         container = QWidget()
         container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(4)
 
         for record in records:
@@ -65,6 +67,8 @@ class SelectionWindow(QWidget):
 
         container_layout.addStretch()
         scroll.setWidget(container)
+
+        layout.addLayout(self._build_toggle_row())
         layout.addWidget(scroll)
 
         footer = QHBoxLayout()
@@ -78,6 +82,55 @@ class SelectionWindow(QWidget):
         layout.addLayout(footer)
 
         self._update_identify_btn()
+
+    _TOGGLE_BUTTONS = [
+        ("decorative", "Toggle All Decorative", "Decorative"),
+        ("smiles", "Toggle All SMILES", "SMILES"),
+        ("iupac", "Toggle All IUPAC", "IUPAC Name"),
+        ("trivial", "Toggle All Common", "Common Name"),
+        ("description", "Toggle All Describe", "Describe Image"),
+    ]
+    _DIVIDER_GAP = 24  # tuned by eye in Task 5 to match the row's divider + spacing
+
+    def _build_toggle_row(self) -> QHBoxLayout:
+        toggle_row = QHBoxLayout()
+        toggle_row.setContentsMargins(8, 0, 8, 0)
+
+        include_spacer = QWidget()
+        include_spacer.setFixedWidth(QCheckBox().sizeHint().width())
+        toggle_row.addWidget(include_spacer)
+
+        thumb_spacer = QWidget()
+        thumb_spacer.setFixedWidth(72)
+        toggle_row.addWidget(thumb_spacer)
+
+        toggle_row.addStretch()
+
+        widths: dict[str, int] = {}
+        buttons: list[tuple[str, QPushButton]] = []
+        for pred_type, button_text, checkbox_label in self._TOGGLE_BUTTONS:
+            button = QPushButton(button_text)
+            width = max(
+                QCheckBox(checkbox_label).sizeHint().width(),
+                button.sizeHint().width(),
+            )
+            button.setFixedWidth(width)
+            widths[pred_type] = width
+            buttons.append((pred_type, button))
+
+        decorative_type, decorative_button = buttons[0]
+        toggle_row.addWidget(decorative_button)
+        toggle_row.addSpacing(self._DIVIDER_GAP)
+        for pred_type, button in buttons[1:]:
+            toggle_row.addWidget(button)
+
+        for pred_type, button in buttons:
+            button.clicked.connect(lambda _checked, t=pred_type: self._toggle_all_type(t))
+
+        for row in self._rows:
+            row.apply_column_widths(widths)
+
+        return toggle_row
 
     def _set_all(self, checked: bool) -> None:
         for row in self._rows:

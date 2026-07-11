@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from PyQt6.QtCore import QEvent, QPointF
 from PyQt6.QtGui import QEnterEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QPushButton
 
 from config import Config
 from models.image_record import ImageRecord
@@ -317,3 +317,44 @@ def test_apply_column_widths_sets_fixed_checkbox_widths():
     assert row._smiles_check.maximumWidth() == 150
     assert row._decorative_check.minimumWidth() == 120
     assert row._decorative_check.maximumWidth() == 120
+
+
+def _find_button(window, text):
+    return next(b for b in window.findChildren(QPushButton) if b.text() == text)
+
+
+def test_toggle_all_smiles_button_checks_all_rows_and_clears_decorative():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+
+    _find_button(window, "Toggle All SMILES").click()
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is True
+        assert row.is_type_checked("decorative") is False
+
+
+def test_toggle_all_decorative_button_checks_all_rows():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+        row._smiles_check.setChecked(True)
+
+    _find_button(window, "Toggle All Decorative").click()
+
+    for row in window._rows:
+        assert row.is_type_checked("decorative") is True
+
+
+def test_toggle_all_buttons_widen_checkbox_columns_to_match_button_width():
+    window = SelectionWindow([_make_record()], Config(), Path("dummy.pptx"))
+    row = window._rows[0]
+    button = _find_button(window, "Toggle All SMILES")
+
+    # Compare minimumWidth (not .width()) since neither widget has been
+    # shown/laid out yet — setFixedWidth guarantees minimumWidth immediately,
+    # but actual geometry only updates on a layout pass.
+    assert row._smiles_check.minimumWidth() == button.minimumWidth()
