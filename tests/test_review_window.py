@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 
 from config import Config
 from models.image_record import ImageRecord
-from gui.review_window import ReviewWindow, _RecordRow
+from gui.review_window import ReviewWindow, _RecordRow, _make_pill, _PILL_COLORS, _PILL_LABELS
 from gui.widgets import HoverHighlightMixin
 
 _app = QApplication.instance() or QApplication(sys.argv)
@@ -130,3 +130,19 @@ def test_record_row_clears_hover_stylesheet_on_leave():
     row.leaveEvent(QEvent(QEvent.Type.Leave))
 
     assert row.styleSheet() == ""
+
+
+def test_make_pill_sets_label_text():
+    pill = _make_pill("smiles")
+    assert pill.text() == "SMILES"
+
+
+def test_make_pill_sets_background_color():
+    pill = _make_pill("iupac")
+    assert _PILL_COLORS["iupac"] in pill.styleSheet()
+
+
+def test_make_pill_labels_cover_all_prediction_types():
+    for pred_type in ["decorative", "smiles", "iupac", "trivial", "description"]:
+        pill = _make_pill(pred_type)
+        assert pill.text() == _PILL_LABELS[pred_type]

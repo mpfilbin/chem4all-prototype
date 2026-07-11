@@ -14,6 +14,26 @@ from pipeline.writer import write
 from gui.widgets import ThumbnailLabel, HoverHighlightMixin
 
 
+_PILL_ORDER = ["decorative", "smiles", "iupac", "trivial", "description"]
+_PILL_LABELS = {
+    "decorative": "Decorative", "smiles": "SMILES", "iupac": "IUPAC",
+    "trivial": "Trivial", "description": "Description",
+}
+_PILL_COLORS = {
+    "decorative": "#6c757d", "smiles": "#0d6efd", "iupac": "#6f42c1",
+    "trivial": "#198754", "description": "#fd7e14",
+}
+
+
+def _make_pill(pred_type: str) -> QLabel:
+    pill = QLabel(_PILL_LABELS[pred_type])
+    pill.setStyleSheet(
+        f"background-color: {_PILL_COLORS[pred_type]}; color: white; "
+        "border-radius: 8px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
+    )
+    return pill
+
+
 class _RecordRow(HoverHighlightMixin, QWidget):
     def __init__(self, record: ImageRecord, done: bool, parent=None):
         super().__init__(parent)
