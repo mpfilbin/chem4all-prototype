@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import sys
 from PyQt6.QtCore import QEvent, QPointF
 from PyQt6.QtGui import QEnterEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QLabel
 
 from config import Config
 from models.image_record import ImageRecord
@@ -146,9 +146,6 @@ def test_make_pill_labels_cover_all_prediction_types():
     for pred_type in ["decorative", "smiles", "iupac", "trivial", "description"]:
         pill = _make_pill(pred_type)
         assert pill.text() == _PILL_LABELS[pred_type]
-
-
-from PyQt6.QtWidgets import QLabel
 
 
 def _header_pill_texts(row: _RecordRow) -> list[str]:
