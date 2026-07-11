@@ -50,7 +50,13 @@ class _RecordRow(HoverHighlightMixin, QWidget):
         info = QVBoxLayout()
         info.addWidget(QLabel(record.source_ref))
 
-        info.addWidget(QLabel("Prediction Results:"))
+        header_row = QHBoxLayout()
+        header_row.addWidget(QLabel("Prediction Results:"))
+        header_row.addStretch()
+        for pred_type in _PILL_ORDER:
+            if pred_type in record.prediction_types:
+                header_row.addWidget(_make_pill(pred_type))
+        info.addLayout(header_row)
         self._value_field = QTextEdit()
         self._value_field.setPlaceholderText("Awaiting result…")
         self._value_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)

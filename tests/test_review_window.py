@@ -146,3 +146,36 @@ def test_make_pill_labels_cover_all_prediction_types():
     for pred_type in ["decorative", "smiles", "iupac", "trivial", "description"]:
         pill = _make_pill(pred_type)
         assert pill.text() == _PILL_LABELS[pred_type]
+
+
+from PyQt6.QtWidgets import QLabel
+
+
+def _header_pill_texts(row: _RecordRow) -> list[str]:
+    info = row.layout().itemAt(1).layout()  # info QVBoxLayout is item 1 of the row's QHBoxLayout
+    header_row = info.itemAt(1).layout()  # header_row QHBoxLayout is item 1 of info (item 0 is source_ref label)
+    texts = []
+    for i in range(header_row.count()):
+        item = header_row.itemAt(i)
+        widget = item.widget()
+        if isinstance(widget, QLabel) and widget.text() != "Prediction Results:":
+            texts.append(widget.text())
+    return texts
+
+
+def test_record_row_shows_pills_in_fixed_order():
+    record = _make_record(prediction_types=["description", "smiles"])
+    row = _RecordRow(record, done=False)
+    assert _header_pill_texts(row) == ["SMILES", "Description"]
+
+
+def test_record_row_shows_single_decorative_pill():
+    record = _make_record(prediction_types=["decorative"])
+    row = _RecordRow(record, done=False)
+    assert _header_pill_texts(row) == ["Decorative"]
+
+
+def test_record_row_shows_all_four_non_decorative_pills():
+    record = _make_record(prediction_types=["trivial", "iupac", "description", "smiles"])
+    row = _RecordRow(record, done=False)
+    assert _header_pill_texts(row) == ["SMILES", "IUPAC", "Trivial", "Description"]
