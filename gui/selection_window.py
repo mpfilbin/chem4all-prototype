@@ -90,7 +90,7 @@ class SelectionWindow(QWidget):
         ("trivial", "Toggle All Common", "Common Name"),
         ("description", "Toggle All Describe", "Describe Image"),
     ]
-    _DIVIDER_GAP = 24  # tuned by eye in Task 5 to match the row's divider + spacing
+    _DIVIDER_GAP = 11  # tuned in Task 5: matches the row's measured divider width (3px) + spacing (8px)
 
     def _build_toggle_row(self) -> QHBoxLayout:
         toggle_row = QHBoxLayout()
