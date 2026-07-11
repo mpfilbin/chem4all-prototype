@@ -83,6 +83,14 @@ class SelectionWindow(QWidget):
         for row in self._rows:
             row.checkbox.setChecked(checked)
 
+    def _toggle_all_type(self, pred_type: str) -> None:
+        if not self._rows:
+            return
+        all_checked = all(row.is_type_checked(pred_type) for row in self._rows)
+        target = not all_checked
+        for row in self._rows:
+            row.set_type_checked(pred_type, target)
+
     def _update_identify_btn(self) -> None:
         n = sum(1 for row in self._rows if row.checkbox.isChecked())
         has_invalid_row = any(

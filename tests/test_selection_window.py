@@ -240,3 +240,68 @@ def test_set_type_checked_false_unchecks_without_touching_decorative():
     assert row._smiles_check.isChecked() is False
     assert row._decorative_check.isChecked() is False
     assert row.is_type_checked("smiles") is False
+
+
+def test_toggle_all_type_checks_all_rows_when_none_checked():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+
+    window._toggle_all_type("smiles")
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is True
+        assert row.is_type_checked("decorative") is False
+
+
+def test_toggle_all_type_unchecks_all_rows_when_all_checked():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+        row._smiles_check.setChecked(True)
+
+    window._toggle_all_type("smiles")
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is False
+
+
+def test_toggle_all_type_checks_all_rows_when_mixed():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    window._rows[0]._decorative_check.setChecked(False)
+    window._rows[0]._smiles_check.setChecked(True)
+    # window._rows[1] stays decorative-only (smiles unchecked) -> mixed state
+
+    window._toggle_all_type("smiles")
+
+    for row in window._rows:
+        assert row.is_type_checked("smiles") is True
+        assert row.is_type_checked("decorative") is False
+
+
+def test_toggle_all_type_decorative_checks_all_rows_and_clears_others():
+    window = SelectionWindow(
+        [_make_record("r1"), _make_record("r2")], Config(), Path("dummy.pptx")
+    )
+    for row in window._rows:
+        row._decorative_check.setChecked(False)
+        row._smiles_check.setChecked(True)
+
+    window._toggle_all_type("decorative")
+
+    for row in window._rows:
+        assert row.is_type_checked("decorative") is True
+        assert row._smiles_check.isChecked() is False
+        assert row._smiles_check.isEnabled() is False
+
+
+def test_toggle_all_type_noop_with_no_rows():
+    window = SelectionWindow([], Config(), Path("dummy.pptx"))
+
+    window._toggle_all_type("smiles")  # must not raise
