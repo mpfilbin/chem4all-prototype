@@ -6,12 +6,32 @@ from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit,
-    QMessageBox, QScrollArea,
+    QMessageBox, QScrollArea, QSizePolicy,
 )
 from config import Config
 from models.image_record import ImageRecord
 from pipeline.writer import write
 from gui.widgets import ThumbnailLabel, HoverHighlightMixin
+
+
+_PILL_ORDER = ["decorative", "smiles", "iupac", "trivial", "description"]
+_PILL_LABELS = {
+    "decorative": "Decorative", "smiles": "SMILES", "iupac": "IUPAC",
+    "trivial": "Common", "description": "Description",
+}
+_PILL_COLORS = {
+    "decorative": "#6c757d", "smiles": "#0d6efd", "iupac": "#6f42c1",
+    "trivial": "#198754", "description": "#fd7e14",
+}
+
+
+def _make_pill(pred_type: str) -> QLabel:
+    pill = QLabel(_PILL_LABELS[pred_type])
+    pill.setStyleSheet(
+        f"background-color: {_PILL_COLORS[pred_type]}; color: white; "
+        "border-radius: 8px; padding: 2px 8px; font-size: 11px; font-weight: 600;"
+    )
+    return pill
 
 
 class _RecordRow(HoverHighlightMixin, QWidget):
@@ -30,13 +50,20 @@ class _RecordRow(HoverHighlightMixin, QWidget):
         info = QVBoxLayout()
         info.addWidget(QLabel(record.source_ref))
 
-        info.addWidget(QLabel("Prediction Results:"))
+        header_row = QHBoxLayout()
+        header_row.addWidget(QLabel("Prediction Results:"))
+        header_row.addStretch()
+        for pred_type in _PILL_ORDER:
+            if pred_type in record.prediction_types:
+                header_row.addWidget(_make_pill(pred_type))
+        info.addLayout(header_row)
         self._value_field = QTextEdit()
         self._value_field.setPlaceholderText("Awaiting result…")
         self._value_field.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         metrics = self._value_field.fontMetrics()
         frame = self._value_field.frameWidth() * 2
         self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
+        self._value_field.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         if done:
             composed = "\n\n".join(record.result_lines())
