@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QCloseEvent, QDragEnterEvent, QDragLeaveEvent, QDropEvent
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QFrame, QProgressBar,
@@ -10,6 +10,8 @@ from config import Config, save_config
 
 
 class FilePickerWindow(QWidget):
+    _DRAG_HIGHLIGHT_STYLESHEET = "FilePickerWindow { border: 2px dashed #0d6efd; }"
+
     def __init__(self, config: Config, config_path: Path | None = None) -> None:
         super().__init__()
         self._config = config
@@ -17,6 +19,8 @@ class FilePickerWindow(QWidget):
         self._download_worker = None
         self.setWindowTitle("chem4all")
         self.setMinimumWidth(440)
+        self.setAcceptDrops(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         layout = QVBoxLayout()
         layout.setSpacing(12)
@@ -201,6 +205,34 @@ class FilePickerWindow(QWidget):
         )
         if path:
             self._start_extraction(Path(path))
+
+    def _is_valid_drag(self, event: QDragEnterEvent | QDropEvent) -> bool:
+        if not self._open_btn.isEnabled():
+            return False
+        urls = event.mimeData().urls()
+        if len(urls) != 1 or not urls[0].isLocalFile():
+            return False
+        return Path(urls[0].toLocalFile()).suffix.lower() in (".docx", ".pptx")
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if self._is_valid_drag(event):
+            event.acceptProposedAction()
+            self.setStyleSheet(self._DRAG_HIGHLIGHT_STYLESHEET)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
+        self.setStyleSheet("")
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        self.setStyleSheet("")
+        if not self._is_valid_drag(event):
+            event.ignore()
+            return
+        path = Path(event.mimeData().urls()[0].toLocalFile())
+        event.acceptProposedAction()
+        self._start_extraction(path)
 
     def _open_settings(self) -> None:
         from gui.settings_dialog import SettingsDialog
