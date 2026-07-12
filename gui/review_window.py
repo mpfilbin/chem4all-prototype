@@ -17,7 +17,7 @@ from gui.widgets import ThumbnailLabel, HoverHighlightMixin
 _PILL_ORDER = ["decorative", "smiles", "iupac", "trivial", "description"]
 _PILL_LABELS = {
     "decorative": "Decorative", "smiles": "SMILES", "iupac": "IUPAC",
-    "trivial": "Trivial", "description": "Description",
+    "trivial": "Common", "description": "Description",
 }
 _PILL_COLORS = {
     "decorative": "#6c757d", "smiles": "#0d6efd", "iupac": "#6f42c1",

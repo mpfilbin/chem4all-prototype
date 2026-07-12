@@ -175,7 +175,7 @@ def test_record_row_shows_single_decorative_pill():
 def test_record_row_shows_all_four_non_decorative_pills():
     record = _make_record(prediction_types=["trivial", "iupac", "description", "smiles"])
     row = _RecordRow(record, done=False)
-    assert _header_pill_texts(row) == ["SMILES", "IUPAC", "Trivial", "Description"]
+    assert _header_pill_texts(row) == ["SMILES", "IUPAC", "Common", "Description"]
 
 
 def test_last_page_row_does_not_stretch_taller_than_full_page(tmp_path):
