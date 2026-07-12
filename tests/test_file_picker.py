@@ -121,5 +121,6 @@ def test_drop_event_ignores_invalid_drop():
 
 def test_drag_hint_label_visible_with_expected_text():
     window = FilePickerWindow(Config())
+    window.show()
     assert window._drag_hint_label.text() == "You can also drag and drop a file here to open it."
     assert window._drag_hint_label.isVisible()
