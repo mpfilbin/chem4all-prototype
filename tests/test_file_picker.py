@@ -117,3 +117,9 @@ def test_drop_event_ignores_invalid_drop():
     window.dropEvent(_drop_event(["/tmp/sample.pdf"]))
 
     window._start_extraction.assert_not_called()
+
+
+def test_drag_hint_label_visible_with_expected_text():
+    window = FilePickerWindow(Config())
+    assert window._drag_hint_label.text() == "You can also drag and drop a file here to open it."
+    assert window._drag_hint_label.isVisible()

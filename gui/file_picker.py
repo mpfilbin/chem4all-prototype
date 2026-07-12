@@ -63,11 +63,19 @@ class FilePickerWindow(QWidget):
         self._extract_count_label.hide()
         layout.addWidget(self._extract_count_label)
 
+        self._drag_hint_label = QLabel("You can also drag and drop a file here to open it.")
+        self._drag_hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._drag_hint_label.setStyleSheet("QLabel { color: #6c757d; font-size: 11px; }")
+        self._drag_hint_label.show()
+        layout.addWidget(self._drag_hint_label)
+
         self.setLayout(layout)
 
         from gui.model_manager import is_model_ready
         if is_model_ready():
             self._model_banner.hide()
+
+        self.show()
 
     def set_model_load_time(self, elapsed: float) -> None:
         self._model_load_label.setText(f"DECIMER model loaded in {elapsed:.1f} s")
