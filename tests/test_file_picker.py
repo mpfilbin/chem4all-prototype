@@ -15,7 +15,9 @@ from gui.file_picker import FilePickerWindow
 
 _app = QApplication.instance() or QApplication(sys.argv)
 
-# Keep references to prevent garbage collection
+# QDragEnterEvent/QDropEvent hold a raw pointer to QMimeData but don't increment Python's
+# refcount. Without this module-level list, local mime objects are garbage-collected after
+# the event is constructed, causing segfaults when event.mimeData() is called.
 _test_mimes = []
 
 
