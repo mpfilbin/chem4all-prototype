@@ -6,7 +6,7 @@ from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit,
-    QMessageBox, QScrollArea,
+    QMessageBox, QScrollArea, QSizePolicy,
 )
 from config import Config
 from models.image_record import ImageRecord
@@ -63,6 +63,7 @@ class _RecordRow(HoverHighlightMixin, QWidget):
         metrics = self._value_field.fontMetrics()
         frame = self._value_field.frameWidth() * 2
         self._value_field.setFixedHeight(metrics.lineSpacing() * 4 + frame + 12)
+        self._value_field.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         if done:
             composed = "\n\n".join(record.result_lines())

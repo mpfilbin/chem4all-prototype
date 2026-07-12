@@ -176,3 +176,27 @@ def test_record_row_shows_all_four_non_decorative_pills():
     record = _make_record(prediction_types=["trivial", "iupac", "description", "smiles"])
     row = _RecordRow(record, done=False)
     assert _header_pill_texts(row) == ["SMILES", "IUPAC", "Trivial", "Description"]
+
+
+def test_last_page_row_does_not_stretch_taller_than_full_page(tmp_path):
+    cfg = Config()
+    records = [
+        _make_record(id=f"r{i}", prediction_types=["smiles", "iupac"])
+        for i in range(cfg.page_size + 1)
+    ]
+    window = ReviewWindow(records, cfg, tmp_path / "sample.pptx")
+    window.resize(1200, 900)
+    window.show()
+    QApplication.processEvents()
+
+    window._page = 0
+    window._render_page()
+    QApplication.processEvents()
+    full_page_row_height = window._rows[0].height()
+
+    window._page = 1  # last page: only 1 record, well short of a full page
+    window._render_page()
+    QApplication.processEvents()
+    partial_page_row_height = window._rows[0].height()
+
+    assert partial_page_row_height == full_page_row_height
