@@ -6,11 +6,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import sys
 from PyQt6.QtCore import QEvent, QPointF
 from PyQt6.QtGui import QEnterEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QLabel
 
 from config import Config
 from models.image_record import ImageRecord
-from gui.review_window import ReviewWindow, _RecordRow
+from gui.review_window import ReviewWindow, _RecordRow, _make_pill, _PILL_COLORS, _PILL_LABELS
 from gui.widgets import HoverHighlightMixin
 
 _app = QApplication.instance() or QApplication(sys.argv)
@@ -130,3 +130,73 @@ def test_record_row_clears_hover_stylesheet_on_leave():
     row.leaveEvent(QEvent(QEvent.Type.Leave))
 
     assert row.styleSheet() == ""
+
+
+def test_make_pill_sets_label_text():
+    pill = _make_pill("smiles")
+    assert pill.text() == "SMILES"
+
+
+def test_make_pill_sets_background_color():
+    pill = _make_pill("iupac")
+    assert _PILL_COLORS["iupac"] in pill.styleSheet()
+
+
+def test_make_pill_labels_cover_all_prediction_types():
+    for pred_type in ["decorative", "smiles", "iupac", "trivial", "description"]:
+        pill = _make_pill(pred_type)
+        assert pill.text() == _PILL_LABELS[pred_type]
+
+
+def _header_pill_texts(row: _RecordRow) -> list[str]:
+    info = row.layout().itemAt(1).layout()  # info QVBoxLayout is item 1 of the row's QHBoxLayout
+    header_row = info.itemAt(1).layout()  # header_row QHBoxLayout is item 1 of info (item 0 is source_ref label)
+    texts = []
+    for i in range(header_row.count()):
+        item = header_row.itemAt(i)
+        widget = item.widget()
+        if isinstance(widget, QLabel) and widget.text() != "Prediction Results:":
+            texts.append(widget.text())
+    return texts
+
+
+def test_record_row_shows_pills_in_fixed_order():
+    record = _make_record(prediction_types=["description", "smiles"])
+    row = _RecordRow(record, done=False)
+    assert _header_pill_texts(row) == ["SMILES", "Description"]
+
+
+def test_record_row_shows_single_decorative_pill():
+    record = _make_record(prediction_types=["decorative"])
+    row = _RecordRow(record, done=False)
+    assert _header_pill_texts(row) == ["Decorative"]
+
+
+def test_record_row_shows_all_four_non_decorative_pills():
+    record = _make_record(prediction_types=["trivial", "iupac", "description", "smiles"])
+    row = _RecordRow(record, done=False)
+    assert _header_pill_texts(row) == ["SMILES", "IUPAC", "Common", "Description"]
+
+
+def test_last_page_row_does_not_stretch_taller_than_full_page(tmp_path):
+    cfg = Config()
+    records = [
+        _make_record(id=f"r{i}", prediction_types=["smiles", "iupac"])
+        for i in range(cfg.page_size + 1)
+    ]
+    window = ReviewWindow(records, cfg, tmp_path / "sample.pptx")
+    window.resize(1200, 900)
+    window.show()
+    QApplication.processEvents()
+
+    window._page = 0
+    window._render_page()
+    QApplication.processEvents()
+    full_page_row_height = window._rows[0].height()
+
+    window._page = 1  # last page: only 1 record, well short of a full page
+    window._render_page()
+    QApplication.processEvents()
+    partial_page_row_height = window._rows[0].height()
+
+    assert partial_page_row_height == full_page_row_height

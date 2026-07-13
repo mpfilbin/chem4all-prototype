@@ -26,9 +26,9 @@ On launch, chem4all loads the DECIMER model in the background and shows progress
 
 <img src="docs/images/loading-screen.png" alt="chem4all loading screen, showing the app name, tagline, and DECIMER model loading status" width="500">
 
-Once the model is loaded, the main screen reports the load time and lets you open a `.pptx` or `.docx` file, or open Settings:
+Once the model is loaded, the main screen reports the load time and lets you open a `.pptx` or `.docx` file, or open Settings. You can also drag and drop a file onto the window to open it:
 
-<img src="docs/images/main-screen.png" alt="chem4all main screen, showing the Open File and Settings buttons once the DECIMER model has loaded" width="500">
+<img src="docs/images/main-screen.png" alt="chem4all main screen, showing the Open File and Settings buttons once the DECIMER model has loaded, with a note that you can also drag and drop a file here to open it" width="500">
 
 If the DECIMER model hasn't been downloaded yet, the main screen instead shows a banner explaining that chemical structure recognition won't work until it's installed, with a button to download it (~600 MB):
 
@@ -46,13 +46,13 @@ The Settings dialog controls thumbnail and recognition image sizes, output mode 
 
 <img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, DECIMER model file locations, and the Diagnostic Logging section with its enable checkbox and log folder path" width="500">
 
-After a file is opened and its images extracted, the Select Images screen lists every image found, each with a checkbox and a checkbox for each prediction type — SMILES, IUPAC name, common name, and/or a plain-language description — so more than one can be requested per image:
+After a file is opened and its images extracted, the Select Images screen lists every image found, each with a checkbox and a checkbox for each prediction type — SMILES, IUPAC name, common name, and/or a plain-language description — so more than one can be requested per image. A "Toggle All" button for each prediction type lets you turn that checkbox on or off for every image at once:
 
-<img src="docs/images/select-images-screen.png" alt="chem4all Select Images screen, showing extracted images with checkboxes and SMILES/IUPAC Name/Common Name/Describe Image checkboxes for each, with more than one prediction type selectable per image" width="500">
+<img src="docs/images/select-images-screen.png" alt="chem4all Select Images screen, showing extracted images with checkboxes and SMILES/IUPAC Name/Common Name/Describe Image checkboxes for each, with more than one prediction type selectable per image, and Toggle All buttons for each prediction type" width="500">
 
-While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish; each image's field stays read-only until all of its requested predictions have returned. Once ready, each image's editable text box shows every requested prediction on its own line — type directly in it to override the value(s), or clear it to exclude that image. A **Restore predicted value** button appears whenever you've changed a field, letting you undo back to the original prediction(s):
+While identification runs, the Review screen updates live with a progress banner and fills in predicted results as they finish; each image's field stays read-only until all of its requested predictions have returned. Once ready, each image's editable text box shows every requested prediction on its own line, labeled with color-coded pills for each prediction type (SMILES, IUPAC, Common, Description) — type directly in the box to override the value(s), or clear it to exclude that image. A **Restore predicted value** button appears whenever you've changed a field, letting you undo back to the original prediction(s):
 
-<img src="docs/images/review-screen-editing.png" alt="chem4all Review screen showing multiple prediction results per image — SMILES, an IUPAC-style name, and a common name listed together for one image — each in one editable text box, with a Restore predicted value button shown for an edited image description field" width="500">
+<img src="docs/images/review-screen-editing.png" alt="chem4all Review screen showing multiple prediction results per image, each labeled with color-coded prediction-type pills such as SMILES, IUPAC, Common, and Description, in an editable text box, with a Restore predicted value button shown for an edited image description field" width="500">
 
 Once you accept the results, chem4all confirms where the accessible file was written and offers to open it directly:
 
