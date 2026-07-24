@@ -176,3 +176,6 @@ package-lock.json
 
 # PyInstaller/dmg build output
 *.dmg
+
+# Superpowers subagent-driven-development scratch workspaces
+.superpowers/
