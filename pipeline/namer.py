@@ -1,75 +1,58 @@
 from __future__ import annotations
-import base64
-import os
+import time
 import requests
 
-_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-_MODEL = "openai/gpt-4o"
-
-_SYSTEM_IUPAC = (
-    "You are a chemistry expert. Given a SMILES string (and, if provided, an image of "
-    "the compound's 2D structure), respond with only the IUPAC name of the compound — "
-    "no explanation, no punctuation, just the name. Always give the systematic IUPAC "
-    "name, even if you recognize the compound by a common, trivial, or trade name."
-)
-_SYSTEM_TRIVIAL = (
-    "You are a chemistry expert. Given a SMILES string (and, if provided, an image of "
-    "the compound's 2D structure), respond with only the most widely used common or "
-    "trivial name of the compound (not the IUPAC systematic name) — no explanation, "
-    "no punctuation, just the name. "
-    "If no well-known trivial name exists, respond with the IUPAC name."
-)
+_PUBCHEM_BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
+_CIR_BASE = "https://cactus.nci.nih.gov/chemical/structure"
+_MAX_RETRIES = 3
+_BACKOFF_BASE_SECONDS = 1.0
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def _build_content(smiles: str, image_bytes: bytes | None) -> str | list[dict]:
-    if not image_bytes:
-        return smiles
-    b64 = base64.b64encode(image_bytes).decode()
-    data_url = f"data:image/png;base64,{b64}"
-    return [
-        {"type": "text", "text": smiles},
-        {"type": "image_url", "image_url": {"url": data_url}},
-    ]
+class NameLookupError(RuntimeError):
+    """All applicable sources failed after retries — distinct from a confirmed 'not found'."""
 
 
-def _lookup(smiles: str, api_key: str, system_prompt: str, image_bytes: bytes | None = None) -> str:
-    resolved_key = os.environ.get("OPENROUTER_API_KEY") or api_key
-    if not resolved_key:
-        raise RuntimeError(
-            "No OpenRouter API key configured. "
-            "Add one in Settings or set the OPENROUTER_API_KEY environment variable."
-        )
-    try:
-        response = requests.post(
-            _ENDPOINT,
-            headers={
-                "Authorization": f"Bearer {resolved_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "chem4all",
-            },
-            json={
-                "model": _MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": _build_content(smiles, image_bytes)},
-                ],
-            },
-            timeout=30,
-        )
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Network error during name lookup: {exc}") from exc
-
-    if not response.ok:
-        raise RuntimeError(
-            f"OpenRouter returned {response.status_code}: {response.text[:200]}"
-        )
-
-    return response.json()["choices"][0]["message"]["content"].strip()
+class _RetriesExhausted(Exception):
+    pass
 
 
-def lookup_iupac(smiles: str, api_key: str, image_bytes: bytes | None = None) -> str:
-    return _lookup(smiles, api_key, _SYSTEM_IUPAC, image_bytes)
+def _request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = requests.request(method, url, timeout=15, **kwargs)
+        except requests.RequestException as exc:
+            last_exc = exc
+            time.sleep(_BACKOFF_BASE_SECONDS * (2 ** attempt))
+            continue
+        if resp.status_code in _RETRYABLE_STATUS:
+            retry_after = resp.headers.get("Retry-After")
+            wait = float(retry_after) if retry_after else _BACKOFF_BASE_SECONDS * (2 ** attempt)
+            time.sleep(min(wait, 30))
+            last_exc = RuntimeError(f"{url} returned {resp.status_code}")
+            continue
+        return resp
+    raise _RetriesExhausted(str(last_exc))
 
 
-def lookup_trivial_name(smiles: str, api_key: str, image_bytes: bytes | None = None) -> str:
-    return _lookup(smiles, api_key, _SYSTEM_TRIVIAL, image_bytes)
+def _pubchem_property(smiles: str, prop: str) -> str | None:
+    resp = _request_with_backoff(
+        "POST", f"{_PUBCHEM_BASE}/compound/smiles/property/{prop}/TXT", data={"smiles": smiles}
+    )
+    return resp.text.strip() if resp.status_code == 200 else None
+
+
+def _pubchem_synonyms(smiles: str) -> list[str]:
+    resp = _request_with_backoff(
+        "POST", f"{_PUBCHEM_BASE}/compound/smiles/synonyms/TXT", data={"smiles": smiles}
+    )
+    if resp.status_code != 200:
+        return []
+    return [line for line in resp.text.strip().splitlines() if line]
+
+
+def _cir_iupac_name(smiles: str) -> str | None:
+    encoded = requests.utils.quote(smiles, safe="")
+    resp = _request_with_backoff("GET", f"{_CIR_BASE}/{encoded}/iupac_name")
+    return resp.text.strip() if resp.status_code == 200 else None

@@ -1,140 +1,88 @@
 import pytest
 import requests as req
 from unittest.mock import MagicMock, patch
-from pipeline.namer import lookup_iupac, lookup_trivial_name
+from pipeline.namer import _pubchem_property, _pubchem_synonyms, _cir_iupac_name, _RetriesExhausted
 
 
-def _mock_response(text: str, status: int = 200) -> MagicMock:
+def _mock_response(status: int, text: str = "", headers: dict | None = None) -> MagicMock:
     resp = MagicMock()
-    resp.ok = status < 400
     resp.status_code = status
     resp.text = text
-    resp.json.return_value = {
-        "choices": [{"message": {"content": f"  {text}  "}}]
-    }
+    resp.headers = headers or {}
     return resp
 
 
-# --- lookup_iupac ---
+# --- _pubchem_property ---
 
-def test_lookup_iupac_success(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_iupac("c1ccccc1", "test-key")
-    assert result == "benzene"
-    call_kwargs = mock_post.call_args
-    payload = call_kwargs.kwargs["json"] if call_kwargs.kwargs else call_kwargs[1]["json"]
-    assert payload["model"] == "openai/gpt-4o"
-    assert payload["messages"][1]["content"] == "c1ccccc1"
-
-
-def test_lookup_iupac_env_var_takes_precedence(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "env-key")
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("ethanol")) as mock_post:
-        result = lookup_iupac("CCO", "config-key")
+def test_pubchem_property_success_returns_stripped_text():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "  ethanol  ")) as mock_req:
+        result = _pubchem_property("CCO", "IUPACName")
     assert result == "ethanol"
-    headers = mock_post.call_args.kwargs["headers"]
-    assert headers["Authorization"] == "Bearer env-key"
+    args, kwargs = mock_req.call_args
+    assert args[0] == "POST"
+    assert args[1] == "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/property/IUPACName/TXT"
+    assert kwargs["data"] == {"smiles": "CCO"}
 
 
-def test_lookup_iupac_no_key_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="No OpenRouter API key"):
-        lookup_iupac("CCO", "")
+def test_pubchem_property_404_returns_none():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
+        assert _pubchem_property("not_a_smiles", "IUPACName") is None
 
 
-def test_lookup_iupac_non_200_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("Unauthorized", 401)):
-        with pytest.raises(RuntimeError, match="401"):
-            lookup_iupac("CCO", "bad-key")
+def test_pubchem_property_retries_503_then_succeeds(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
+    responses = [_mock_response(503, headers={"Retry-After": "1"}), _mock_response(200, "ethanol")]
+    with patch("pipeline.namer.requests.request", side_effect=responses):
+        result = _pubchem_property("CCO", "IUPACName")
+    assert result == "ethanol"
 
 
-def test_lookup_iupac_network_error_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", side_effect=req.RequestException("timeout")):
-        with pytest.raises(RuntimeError, match="Network error"):
-            lookup_iupac("CCO", "any-key")
+def test_pubchem_property_exhausts_retries_raises():
+    with patch("pipeline.namer.time.sleep"):
+        with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
+            with pytest.raises(_RetriesExhausted):
+                _pubchem_property("CCO", "IUPACName")
 
 
-def test_lookup_iupac_with_image_sends_multimodal_content(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_iupac("c1ccccc1", "test-key", image_bytes=b"fakepngbytes")
-    assert result == "benzene"
-    payload = mock_post.call_args.kwargs["json"]
-    content = payload["messages"][1]["content"]
-    assert isinstance(content, list)
-    assert content[0] == {"type": "text", "text": "c1ccccc1"}
-    assert content[1]["type"] == "image_url"
-    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+def test_pubchem_property_network_error_retries_then_raises():
+    with patch("pipeline.namer.time.sleep"):
+        with patch("pipeline.namer.requests.request", side_effect=req.RequestException("timeout")):
+            with pytest.raises(_RetriesExhausted):
+                _pubchem_property("CCO", "IUPACName")
 
 
-def test_lookup_iupac_without_image_sends_plain_string_content(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        lookup_iupac("c1ccccc1", "test-key")
-    payload = mock_post.call_args.kwargs["json"]
-    assert payload["messages"][1]["content"] == "c1ccccc1"
+# --- _pubchem_synonyms ---
+
+def test_pubchem_synonyms_success_returns_line_list():
+    text = "2-acetyloxybenzoic acid\n2-Acetoxybenzoic acid\n50-78-2\n"
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, text)):
+        result = _pubchem_synonyms("CC(=O)Oc1ccccc1C(=O)O")
+    assert result == ["2-acetyloxybenzoic acid", "2-Acetoxybenzoic acid", "50-78-2"]
 
 
-def test_lookup_iupac_system_prompt_forbids_trivial_name_fallback(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        lookup_iupac("c1ccccc1", "test-key")
-    payload = mock_post.call_args.kwargs["json"]
-    system_content = payload["messages"][0]["content"].lower()
-    assert "systematic" in system_content
-    assert "even if you recognize" in system_content
+def test_pubchem_synonyms_404_returns_empty_list():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
+        assert _pubchem_synonyms("not_a_smiles") == []
 
 
-# --- lookup_trivial_name ---
+# --- _cir_iupac_name ---
 
-def test_lookup_trivial_name_success(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_trivial_name("c1ccccc1", "test-key")
-    assert result == "benzene"
-    payload = mock_post.call_args.kwargs["json"]
-    assert payload["messages"][1]["content"] == "c1ccccc1"
-
-
-def test_lookup_trivial_name_env_var_takes_precedence(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "env-key")
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("aspirin")) as mock_post:
-        result = lookup_trivial_name("CC(=O)Oc1ccccc1C(=O)O", "config-key")
-    assert result == "aspirin"
-    assert mock_post.call_args.kwargs["headers"]["Authorization"] == "Bearer env-key"
+def test_cir_iupac_name_success():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "ethanol")) as mock_req:
+        result = _cir_iupac_name("CCO")
+    assert result == "ethanol"
+    args, kwargs = mock_req.call_args
+    assert args[0] == "GET"
+    assert args[1] == "https://cactus.nci.nih.gov/chemical/structure/CCO/iupac_name"
 
 
-def test_lookup_trivial_name_no_key_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="No OpenRouter API key"):
-        lookup_trivial_name("CCO", "")
+def test_cir_iupac_name_url_encodes_slash_characters():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "but-2-ene")) as mock_req:
+        _cir_iupac_name("C/C=C/C")
+    args, _ = mock_req.call_args
+    assert "/" not in args[1].split("chemical/structure/")[1].split("/iupac_name")[0]
 
 
-def test_lookup_trivial_name_non_200_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("Forbidden", 403)):
-        with pytest.raises(RuntimeError, match="403"):
-            lookup_trivial_name("CCO", "bad-key")
-
-
-def test_lookup_trivial_name_network_error_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", side_effect=req.RequestException("timeout")):
-        with pytest.raises(RuntimeError, match="Network error"):
-            lookup_trivial_name("CCO", "any-key")
-
-
-def test_lookup_trivial_name_with_image_sends_multimodal_content(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_trivial_name("c1ccccc1", "test-key", image_bytes=b"fakepngbytes")
-    assert result == "benzene"
-    payload = mock_post.call_args.kwargs["json"]
-    content = payload["messages"][1]["content"]
-    assert isinstance(content, list)
-    assert content[0] == {"type": "text", "text": "c1ccccc1"}
-    assert content[1]["type"] == "image_url"
-    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+def test_cir_iupac_name_404_returns_none():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
+        assert _cir_iupac_name("some_smiles") is None
