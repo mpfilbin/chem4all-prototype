@@ -22,6 +22,22 @@ def _dir_size_human(path: Path) -> str:
     return f"{total:.1f} GB"
 
 
+def _check_pubchem_available() -> bool:
+    from pipeline.namer import _pubchem_property
+    try:
+        return _pubchem_property("CCO", "IUPACName") is not None
+    except Exception:
+        return False
+
+
+def _check_cir_available() -> bool:
+    from pipeline.namer import _cir_iupac_name
+    try:
+        return _cir_iupac_name("CCO") is not None
+    except Exception:
+        return False
+
+
 class SettingsDialog(QDialog):
     def __init__(
         self,
@@ -85,6 +101,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout()
         layout.addLayout(form)
         layout.addWidget(self._build_openrouter_section())
+        layout.addWidget(self._build_naming_availability_section())
         layout.addWidget(self._build_model_info())
         layout.addWidget(self._build_diagnostic_logging_section())
         layout.addWidget(buttons)
@@ -103,12 +120,48 @@ class SettingsDialog(QDialog):
         key_row.addWidget(self._api_key_field)
         vbox.addLayout(key_row)
 
-        note = QLabel("The OPENROUTER_API_KEY environment variable takes precedence if set.")
+        note = QLabel(
+            "Used for the \"Describe Image\" feature only. "
+            "The OPENROUTER_API_KEY environment variable takes precedence if set."
+        )
         note.setStyleSheet("color: #6c757d; font-size: 11px;")
         note.setWordWrap(True)
         vbox.addWidget(note)
 
         return box
+
+    def _build_naming_availability_section(self) -> QGroupBox:
+        box = QGroupBox("Name Lookup Availability")
+        vbox = QVBoxLayout(box)
+        vbox.setSpacing(6)
+
+        avail_row = QHBoxLayout()
+        self._pubchem_status = QLabel("○ Unknown")
+        self._cir_status = QLabel("○ Unknown")
+        avail_row.addWidget(QLabel("PubChem:"))
+        avail_row.addWidget(self._pubchem_status)
+        avail_row.addWidget(QLabel("CIR (fallback):"))
+        avail_row.addWidget(self._cir_status)
+        recheck_btn = QPushButton("Recheck")
+        recheck_btn.clicked.connect(self._refresh_naming_availability)
+        avail_row.addWidget(recheck_btn)
+        avail_row.addStretch()
+        vbox.addLayout(avail_row)
+
+        note = QLabel(
+            "IUPAC name lookups try PubChem first, then CIR automatically if PubChem is "
+            "unavailable. This just shows current status — no action needed."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #6c757d; font-size: 11px;")
+        vbox.addWidget(note)
+
+        self._refresh_naming_availability()
+        return box
+
+    def _refresh_naming_availability(self) -> None:
+        self._pubchem_status.setText("● Available" if _check_pubchem_available() else "● Unavailable")
+        self._cir_status.setText("● Available" if _check_cir_available() else "● Unavailable")
 
     def _build_model_info(self) -> QGroupBox:
         from gui.model_manager import MODEL_URLS, _decimer_home
