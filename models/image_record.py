@@ -15,6 +15,7 @@ class ImageRecord:
     confidence: float | None = None
     iupac_name: str | None = None
     trivial_name: str | None = None
+    iupac_source: str | None = None  # 'pubchem' | 'cir'
     description: str | None = None
     prediction_types: list[str] = field(default_factory=lambda: ["decorative"])
     approved_value: str | None = None
@@ -49,6 +50,7 @@ class ImageRecord:
             "predicted_smiles": self.predicted_smiles,
             "confidence": self.confidence,
             "iupac_name": self.iupac_name,
+            "iupac_source": self.iupac_source,
             "trivial_name": self.trivial_name,
             "description": self.description,
             "prediction_types": self.prediction_types,
@@ -70,6 +72,7 @@ class ImageRecord:
             predicted_smiles=d.get("predicted_smiles"),
             confidence=d.get("confidence"),
             iupac_name=d.get("iupac_name"),
+            iupac_source=d.get("iupac_source"),
             trivial_name=d.get("trivial_name"),
             description=d.get("description"),
             prediction_types=prediction_types,

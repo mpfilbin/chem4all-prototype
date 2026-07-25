@@ -204,3 +204,30 @@ def test_result_lines_returns_decorative_placeholder():
         prediction_types=["decorative"],
     )
     assert record.result_lines() == ["Decorative Image"]
+
+
+def test_image_record_iupac_source_default():
+    record = ImageRecord(
+        id="abc123", source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"thumb", recognition_bytes=b"recog",
+    )
+    assert record.iupac_source is None
+
+
+def test_to_review_dict_includes_iupac_source():
+    record = ImageRecord(
+        id="abc123", source_ref="slide 1, shape 1",
+        thumbnail_bytes=b"thumb", recognition_bytes=b"recog",
+        iupac_name="ethanol", iupac_source="cir",
+    )
+    assert record.to_review_dict()["iupac_source"] == "cir"
+
+
+def test_from_review_dict_restores_iupac_source():
+    d = {
+        "id": "abc123", "source_ref": "slide 1, shape 1",
+        "iupac_name": "ethanol", "iupac_source": "pubchem",
+        "prediction_types": ["iupac"],
+    }
+    record = ImageRecord.from_review_dict(d)
+    assert record.iupac_source == "pubchem"
