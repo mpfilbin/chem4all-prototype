@@ -170,6 +170,8 @@ class SettingsDialog(QDialog):
         return box
 
     def _refresh_naming_availability(self) -> None:
+        if getattr(self, "_naming_availability_worker", None) is not None and self._naming_availability_worker.isRunning():
+            return
         self._pubchem_status.setText("○ Checking…")
         self._cir_status.setText("○ Checking…")
         worker = _NamingAvailabilityCheckWorker()
@@ -266,6 +268,13 @@ class SettingsDialog(QDialog):
 
     def _open_diagnostic_log_dir(self) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(self._diag_path_field.text()))
+
+    def done(self, result: int) -> None:
+        worker = getattr(self, "_naming_availability_worker", None)
+        if worker is not None and worker.isRunning():
+            worker.quit()
+            worker.wait()
+        super().done(result)
 
     def _save(self) -> None:
         self.config.openrouter_api_key = self._api_key_field.text().strip()

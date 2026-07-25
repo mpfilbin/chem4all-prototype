@@ -29,6 +29,11 @@ def test_pubchem_property_404_returns_none():
         assert _pubchem_property("not_a_smiles", "IUPACName") is None
 
 
+def test_pubchem_property_empty_body_returns_none():
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "   ")):
+        assert _pubchem_property("CCO", "IUPACName") is None
+
+
 def test_pubchem_property_retries_503_then_succeeds(monkeypatch):
     monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
     responses = [_mock_response(503, headers={"Retry-After": "1"}), _mock_response(200, "ethanol")]
@@ -49,6 +54,14 @@ def test_pubchem_property_network_error_retries_then_raises():
         with patch("pipeline.namer.requests.request", side_effect=req.RequestException("timeout")):
             with pytest.raises(_RetriesExhausted):
                 _pubchem_property("CCO", "IUPACName")
+
+
+def test_request_with_backoff_falls_back_on_non_numeric_retry_after(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
+    responses = [_mock_response(503, headers={"Retry-After": "Wed, 21 Oct 2025 07:28:00 GMT"}), _mock_response(200, "ethanol")]
+    with patch("pipeline.namer.requests.request", side_effect=responses):
+        result = _pubchem_property("CCO", "IUPACName")
+    assert result == "ethanol"
 
 
 # --- _pubchem_synonyms ---
@@ -168,3 +181,13 @@ def test_lookup_trivial_name_raises_on_unreachable(tmp_path, monkeypatch):
     with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
         with pytest.raises(NameLookupError):
             lookup_trivial_name("CCO")
+
+
+def test_lookup_iupac_wraps_cache_error_as_name_lookup_error(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    monkeypatch.setattr(
+        "pipeline.namer.get_cached",
+        lambda *a, **k: (_ for _ in ()).throw(__import__("sqlite3").OperationalError("database is locked")),
+    )
+    with pytest.raises(NameLookupError):
+        lookup_iupac("CCO")
