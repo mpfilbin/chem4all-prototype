@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import QUrl
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QCheckBox,
@@ -36,6 +37,15 @@ def _check_cir_available() -> bool:
         return _cir_iupac_name("CCO") is not None
     except Exception:
         return False
+
+
+class _NamingAvailabilityCheckWorker(QThread):
+    finished = pyqtSignal(bool, bool)  # pubchem_available, cir_available
+
+    def run(self) -> None:
+        pubchem_ok = _check_pubchem_available()
+        cir_ok = _check_cir_available()
+        self.finished.emit(pubchem_ok, cir_ok)
 
 
 class SettingsDialog(QDialog):
@@ -160,8 +170,16 @@ class SettingsDialog(QDialog):
         return box
 
     def _refresh_naming_availability(self) -> None:
-        self._pubchem_status.setText("● Available" if _check_pubchem_available() else "● Unavailable")
-        self._cir_status.setText("● Available" if _check_cir_available() else "● Unavailable")
+        self._pubchem_status.setText("○ Checking…")
+        self._cir_status.setText("○ Checking…")
+        worker = _NamingAvailabilityCheckWorker(self)
+        worker.finished.connect(self._on_naming_availability_checked)
+        self._naming_availability_worker = worker  # keep reference alive during the check
+        worker.start()
+
+    def _on_naming_availability_checked(self, pubchem_ok: bool, cir_ok: bool) -> None:
+        self._pubchem_status.setText("● Available" if pubchem_ok else "● Unavailable")
+        self._cir_status.setText("● Available" if cir_ok else "● Unavailable")
 
     def _build_model_info(self) -> QGroupBox:
         from gui.model_manager import MODEL_URLS, _decimer_home
