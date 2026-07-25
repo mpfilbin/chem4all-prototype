@@ -172,7 +172,7 @@ class SettingsDialog(QDialog):
     def _refresh_naming_availability(self) -> None:
         self._pubchem_status.setText("○ Checking…")
         self._cir_status.setText("○ Checking…")
-        worker = _NamingAvailabilityCheckWorker(self)
+        worker = _NamingAvailabilityCheckWorker()
         worker.finished.connect(self._on_naming_availability_checked)
         self._naming_availability_worker = worker  # keep reference alive during the check
         worker.start()
