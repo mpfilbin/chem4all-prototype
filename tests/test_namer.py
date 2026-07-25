@@ -86,3 +86,85 @@ def test_cir_iupac_name_url_encodes_slash_characters():
 def test_cir_iupac_name_404_returns_none():
     with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
         assert _cir_iupac_name("some_smiles") is None
+
+
+from pipeline.namer import lookup_iupac, lookup_trivial_name, NameLookupError
+from pipeline.name_cache import get_cached
+
+
+def test_lookup_iupac_pubchem_success(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "ethanol")):
+        name, source = lookup_iupac("CCO")
+    assert (name, source) == ("ethanol", "pubchem")
+    assert get_cached("CCO", "iupac", "pubchem", db_path=tmp_path / "cache.db") == ("ethanol", True)
+
+
+def test_lookup_iupac_uses_cache_on_second_call(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "ethanol")) as mock_req:
+        lookup_iupac("CCO")
+        lookup_iupac("CCO")
+    assert mock_req.call_count == 1
+
+
+def test_lookup_iupac_falls_back_to_cir_when_pubchem_not_found(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    responses = [_mock_response(404), _mock_response(200, "ethanol")]
+    with patch("pipeline.namer.requests.request", side_effect=responses):
+        name, source = lookup_iupac("CCO")
+    assert (name, source) == ("ethanol", "cir")
+
+
+def test_lookup_iupac_falls_back_to_cir_when_pubchem_unreachable(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
+    responses = [_mock_response(503)] * 3 + [_mock_response(200, "ethanol")]
+    with patch("pipeline.namer.requests.request", side_effect=responses):
+        name, source = lookup_iupac("CCO")
+    assert (name, source) == ("ethanol", "cir")
+
+
+def test_lookup_iupac_raises_when_both_sources_unreachable(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
+        with pytest.raises(NameLookupError):
+            lookup_iupac("CCO")
+
+
+def test_lookup_iupac_confirmed_not_found_in_both_returns_none(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
+        name, source = lookup_iupac("XYZ")
+    assert (name, source) == (None, "cir")
+
+
+def test_lookup_iupac_strips_salts_before_lookup(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "acetate")) as mock_req:
+        lookup_iupac("CC(=O)[O-].[Na+]")
+    args, kwargs = mock_req.call_args
+    assert kwargs["data"] == {"smiles": "CC(=O)[O-]"}
+
+
+def test_lookup_trivial_name_returns_first_synonym(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    text = "2-acetyloxybenzoic acid\n2-Acetoxybenzoic acid\n50-78-2\n"
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, text)):
+        result = lookup_trivial_name("CC(=O)Oc1ccccc1C(=O)O")
+    assert result == "2-acetyloxybenzoic acid"
+
+
+def test_lookup_trivial_name_no_synonyms_returns_none(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
+        assert lookup_trivial_name("XYZ") is None
+
+
+def test_lookup_trivial_name_raises_on_unreachable(tmp_path, monkeypatch):
+    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
+    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
+    with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
+        with pytest.raises(NameLookupError):
+            lookup_trivial_name("CCO")
