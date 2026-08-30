@@ -98,6 +98,9 @@ def merge_by_cid(inchikey_path: Path, iupac_path: Path, synonym_path: Path):
         yield inchikey, iupac_name, trivial_name
 
 
+_INDEX_PROGRESS_STEP = 500_000  # log every N merged rows — no total is known in advance
+
+
 def build_index(rows, db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     db_path.unlink(missing_ok=True)
@@ -106,14 +109,23 @@ def build_index(rows, db_path: Path) -> None:
         conn.execute(
             "CREATE TABLE names (inchikey TEXT PRIMARY KEY, iupac_name TEXT, trivial_name TEXT)"
         )
-        # OR IGNORE: if PubChem publishes more than one CID for the same InChIKey
-        # (e.g. isotope/stereo variants that collapse to one standard InChIKey),
-        # keep whichever row was inserted first rather than raising.
-        conn.executemany(
-            "INSERT OR IGNORE INTO names (inchikey, iupac_name, trivial_name) VALUES (?, ?, ?)",
-            rows,
-        )
+        # Inserted in batches (still one transaction, one final commit — same
+        # performance as a single executemany) so progress can be logged as rows
+        # come off the merge-join generator instead of going silent until it's done.
+        insert_sql = "INSERT OR IGNORE INTO names (inchikey, iupac_name, trivial_name) VALUES (?, ?, ?)"
+        count = 0
+        batch = []
+        for row in rows:
+            batch.append(row)
+            count += 1
+            if len(batch) >= _INDEX_PROGRESS_STEP:
+                conn.executemany(insert_sql, batch)
+                log.info("  merged %d rows so far...", count)
+                batch.clear()
+        if batch:
+            conn.executemany(insert_sql, batch)
         conn.commit()
+        log.info("  merged %d rows total", count)
     finally:
         conn.close()
 
