@@ -12,7 +12,7 @@ from pipeline import name_dataset
 
 log = logging.getLogger(__name__)
 
-DATASET_URL = "https://<account>.blob.core.windows.net/chem4all/naming_dataset.sqlite.gz"
+DATASET_URL = "https://storage16f278.blob.core.windows.net/chem4all/naming_dataset.sqlite.gz"
 
 # Process-wide guard: the Settings dialog and the main-window banner each own their
 # own DatasetDownloadWorker, and both stream to the identical temp paths. Two
