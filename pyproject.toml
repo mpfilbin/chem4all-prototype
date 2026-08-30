@@ -15,6 +15,7 @@ dependencies = [
     "DECIMER",
     "cairosvg",
     "requests",
+    "pystow",
 ]
 
 [project.optional-dependencies]
