@@ -33,7 +33,7 @@ def test_worker_logs_recognizing_and_result(monkeypatch, caplog):
 
 def test_worker_logs_iupac_lookup(monkeypatch, caplog):
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
-    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles: ("benzene", "pubchem"))
+    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles: "benzene")
     caplog.set_level(logging.DEBUG, logger="gui.worker")
 
     worker = RecognizerWorker([_make_record(prediction_types=["iupac"])], Config())
@@ -44,27 +44,13 @@ def test_worker_logs_iupac_lookup(monkeypatch, caplog):
     assert any(m.startswith("slide 1, shape 1 -> 'benzene'") for m in messages)
 
 
-def test_worker_sets_iupac_source_from_lookup(monkeypatch):
-    monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
-    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles: ("benzene", "cir"))
-
-    records = [_make_record(prediction_types=["iupac"])]
-    worker = RecognizerWorker(records, Config())
-    result = {}
-    worker.record_ready.connect(lambda r: result.setdefault("record", r))
-    worker.run()
-
-    assert result["record"].iupac_name == "benzene"
-    assert result["record"].iupac_source == "cir"
-
-
 def test_worker_emits_error_on_name_lookup_error(monkeypatch):
     from pipeline.namer import NameLookupError
 
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
 
     def _raise(smiles):
-        raise NameLookupError("PubChem and CIR both unreachable")
+        raise NameLookupError("Naming dataset not downloaded — see Settings.")
 
     monkeypatch.setattr("pipeline.namer.lookup_iupac", _raise)
 
@@ -95,7 +81,7 @@ def test_worker_emits_error_on_trivial_name_lookup_error(monkeypatch):
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
 
     def _raise(smiles):
-        raise NameLookupError("PubChem unreachable")
+        raise NameLookupError("Naming dataset not downloaded — see Settings.")
 
     monkeypatch.setattr("pipeline.namer.lookup_trivial_name", _raise)
 
@@ -124,7 +110,7 @@ def test_worker_logs_description(monkeypatch, caplog):
 
 def test_worker_handles_multiple_prediction_types_in_one_record(monkeypatch, caplog):
     monkeypatch.setattr("gui.worker._run_decimer", lambda img_bytes: ("C1=CC=CC=C1", 0.95))
-    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles: ("benzene", "pubchem"))
+    monkeypatch.setattr("pipeline.namer.lookup_iupac", lambda smiles: "benzene")
     monkeypatch.setattr(
         "pipeline.describer.describe_image",
         lambda img_bytes, api_key: "A benzene ring diagram.",

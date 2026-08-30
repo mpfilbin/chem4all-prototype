@@ -51,7 +51,7 @@ class RecognizerWorker(QThread):
                         try:
                             log.debug("Looking up IUPAC name for %s...", record.source_ref)
                             t0 = time.perf_counter()
-                            record.iupac_name, record.iupac_source = lookup_iupac(smiles)
+                            record.iupac_name = lookup_iupac(smiles)
                             log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.iupac_name, time.perf_counter() - t0)
                         except NameLookupError as exc:
                             log.warning("IUPAC lookup failed for %s: %s", record.source_ref, exc)
