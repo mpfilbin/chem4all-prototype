@@ -2,13 +2,12 @@ from __future__ import annotations
 from pathlib import Path
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import QUrl
-from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QCheckBox,
     QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox,
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel, QLineEdit, QPushButton,
-    QFileDialog, QMessageBox,
+    QFileDialog, QMessageBox, QProgressBar,
 )
 from config import Config, save_config, default_log_dir
 from logging_setup import configure_logging
@@ -21,31 +20,6 @@ def _dir_size_human(path: Path) -> str:
         if total < 1024:
             return f"{total:.1f} {unit}"
     return f"{total:.1f} GB"
-
-
-def _check_pubchem_available() -> bool:
-    from pipeline.namer import _pubchem_property
-    try:
-        return _pubchem_property("CCO", "IUPACName") is not None
-    except Exception:
-        return False
-
-
-def _check_cir_available() -> bool:
-    from pipeline.namer import _cir_iupac_name
-    try:
-        return _cir_iupac_name("CCO") is not None
-    except Exception:
-        return False
-
-
-class _NamingAvailabilityCheckWorker(QThread):
-    finished = pyqtSignal(bool, bool)  # pubchem_available, cir_available
-
-    def run(self) -> None:
-        pubchem_ok = _check_pubchem_available()
-        cir_ok = _check_cir_available()
-        self.finished.emit(pubchem_ok, cir_ok)
 
 
 class SettingsDialog(QDialog):
@@ -111,7 +85,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout()
         layout.addLayout(form)
         layout.addWidget(self._build_openrouter_section())
-        layout.addWidget(self._build_naming_availability_section())
+        layout.addWidget(self._build_naming_dataset_section())
         layout.addWidget(self._build_model_info())
         layout.addWidget(self._build_diagnostic_logging_section())
         layout.addWidget(buttons)
@@ -140,48 +114,107 @@ class SettingsDialog(QDialog):
 
         return box
 
-    def _build_naming_availability_section(self) -> QGroupBox:
-        box = QGroupBox("Name Lookup Availability")
+    def _build_naming_dataset_section(self) -> QGroupBox:
+        from pipeline.name_dataset import dataset_path, is_dataset_ready
+        from gui.dataset_manager import dataset_last_downloaded
+
+        box = QGroupBox("Naming Dataset")
         vbox = QVBoxLayout(box)
         vbox.setSpacing(6)
 
-        avail_row = QHBoxLayout()
-        self._pubchem_status = QLabel("○ Unknown")
-        self._cir_status = QLabel("○ Unknown")
-        avail_row.addWidget(QLabel("PubChem:"))
-        avail_row.addWidget(self._pubchem_status)
-        avail_row.addWidget(QLabel("CIR (fallback):"))
-        avail_row.addWidget(self._cir_status)
-        recheck_btn = QPushButton("Recheck")
-        recheck_btn.clicked.connect(self._refresh_naming_availability)
-        avail_row.addWidget(recheck_btn)
-        avail_row.addStretch()
-        vbox.addLayout(avail_row)
+        ready = is_dataset_ready()
+        last_downloaded = dataset_last_downloaded()
+        if ready and last_downloaded is not None:
+            status_text = f"✓  Downloaded  (last updated: {last_downloaded:%Y-%m-%d})"
+            status_color = "#155724"
+        elif ready:
+            status_text = "✓  Downloaded"
+            status_color = "#155724"
+        else:
+            status_text = "✗  Not downloaded"
+            status_color = "#721c24"
+
+        status_row = QHBoxLayout()
+        status_row.addWidget(QLabel("Status:"))
+        self._dataset_status_label = QLabel(status_text)
+        self._dataset_status_label.setStyleSheet(f"color: {status_color}; font-weight: bold;")
+        status_row.addWidget(self._dataset_status_label)
+        status_row.addStretch()
+        vbox.addLayout(status_row)
+
+        path_row = QHBoxLayout()
+        path_row.addWidget(QLabel("Location:"))
+        path_edit = QLineEdit(str(dataset_path().parent))
+        path_edit.setReadOnly(True)
+        path_row.addWidget(path_edit)
+        show_btn = QPushButton("Show in Finder")
+        show_btn.setEnabled(dataset_path().parent.exists())
+        show_btn.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(dataset_path().parent)))
+        )
+        path_row.addWidget(show_btn)
+        vbox.addLayout(path_row)
+
+        self._dataset_refresh_btn = QPushButton("Refresh Dataset" if ready else "Download Dataset")
+        self._dataset_refresh_btn.clicked.connect(self._start_dataset_download)
+        vbox.addWidget(self._dataset_refresh_btn)
+
+        self._dataset_progress_bar = QProgressBar()
+        self._dataset_progress_bar.setTextVisible(False)
+        self._dataset_progress_bar.hide()
+        vbox.addWidget(self._dataset_progress_bar)
 
         note = QLabel(
-            "IUPAC name lookups try PubChem first, then CIR automatically if PubChem is "
-            "unavailable. This just shows current status — no action needed."
+            "IUPAC and trivial names are looked up from a local offline dataset. "
+            "No internet connection is required."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #6c757d; font-size: 11px;")
         vbox.addWidget(note)
 
-        self._refresh_naming_availability()
+        self._dataset_download_worker = None
         return box
 
-    def _refresh_naming_availability(self) -> None:
-        if getattr(self, "_naming_availability_worker", None) is not None and self._naming_availability_worker.isRunning():
+    def _start_dataset_download(self) -> None:
+        if self._dataset_download_worker is not None and self._dataset_download_worker.isRunning():
             return
-        self._pubchem_status.setText("○ Checking…")
-        self._cir_status.setText("○ Checking…")
-        worker = _NamingAvailabilityCheckWorker()
-        worker.finished.connect(self._on_naming_availability_checked)
-        self._naming_availability_worker = worker  # keep reference alive during the check
+        from gui.dataset_manager import DatasetDownloadWorker
+
+        self._dataset_refresh_btn.setEnabled(False)
+        self._dataset_progress_bar.setRange(0, 0)
+        self._dataset_progress_bar.show()
+
+        worker = DatasetDownloadWorker()
+        worker.status.connect(self._dataset_status_label.setText)
+        worker.progress.connect(self._on_dataset_progress)
+        worker.finished.connect(self._on_dataset_download_finished)
+        worker.error.connect(self._on_dataset_download_error)
+        self._dataset_download_worker = worker
         worker.start()
 
-    def _on_naming_availability_checked(self, pubchem_ok: bool, cir_ok: bool) -> None:
-        self._pubchem_status.setText("● Available" if pubchem_ok else "● Unavailable")
-        self._cir_status.setText("● Available" if cir_ok else "● Unavailable")
+    def _on_dataset_progress(self, done: int, total: int) -> None:
+        if total > 0:
+            self._dataset_progress_bar.setRange(0, 100)
+            self._dataset_progress_bar.setValue(int(done * 100 / total))
+        else:
+            self._dataset_progress_bar.setRange(0, 0)
+
+    def _on_dataset_download_finished(self) -> None:
+        from pipeline.name_dataset import dataset_path
+        from gui.dataset_manager import dataset_last_downloaded
+
+        self._dataset_progress_bar.hide()
+        self._dataset_refresh_btn.setEnabled(True)
+        self._dataset_refresh_btn.setText("Refresh Dataset")
+        last_downloaded = dataset_last_downloaded()
+        suffix = f"  (last updated: {last_downloaded:%Y-%m-%d})" if last_downloaded else ""
+        self._dataset_status_label.setText(f"✓  Downloaded{suffix}")
+        self._dataset_status_label.setStyleSheet("color: #155724; font-weight: bold;")
+
+    def _on_dataset_download_error(self, msg: str) -> None:
+        self._dataset_progress_bar.hide()
+        self._dataset_refresh_btn.setEnabled(True)
+        QMessageBox.warning(self, "Naming Dataset", f"Could not download the naming dataset: {msg}")
 
     def _build_model_info(self) -> QGroupBox:
         from gui.model_manager import MODEL_URLS, _decimer_home
@@ -270,7 +303,7 @@ class SettingsDialog(QDialog):
         QDesktopServices.openUrl(QUrl.fromLocalFile(self._diag_path_field.text()))
 
     def done(self, result: int) -> None:
-        worker = getattr(self, "_naming_availability_worker", None)
+        worker = getattr(self, "_dataset_download_worker", None)
         if worker is not None and worker.isRunning():
             worker.quit()
             worker.wait()
