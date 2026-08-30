@@ -1,193 +1,84 @@
 import pytest
-import requests as req
-from unittest.mock import MagicMock, patch
-from pipeline.namer import _pubchem_property, _pubchem_synonyms, _cir_iupac_name, _RetriesExhausted
+from pipeline.namer import lookup_iupac, lookup_trivial_name, NameLookupError, _inchikey_for
+
+ETHANOL_SMILES = "CCO"
+ETHANOL_INCHIKEY = "LFQSCWFLJHTTHZ-UHFFFAOYSA-N"
 
 
-def _mock_response(status: int, text: str = "", headers: dict | None = None) -> MagicMock:
-    resp = MagicMock()
-    resp.status_code = status
-    resp.text = text
-    resp.headers = headers or {}
-    return resp
+# --- _inchikey_for ---
+
+def test_inchikey_for_computes_expected_key():
+    assert _inchikey_for(ETHANOL_SMILES) == ETHANOL_INCHIKEY
 
 
-# --- _pubchem_property ---
-
-def test_pubchem_property_success_returns_stripped_text():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "  ethanol  ")) as mock_req:
-        result = _pubchem_property("CCO", "IUPACName")
-    assert result == "ethanol"
-    args, kwargs = mock_req.call_args
-    assert args[0] == "POST"
-    assert args[1] == "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/property/IUPACName/TXT"
-    assert kwargs["data"] == {"smiles": "CCO"}
+def test_inchikey_for_strips_salts_before_computing():
+    # Sodium acetate: without stripping the [Na+] fragment first, RDKit would compute
+    # a different, salt-inclusive InChIKey that wouldn't match the parent compound's
+    # entry in the dataset.
+    assert _inchikey_for("CC(=O)[O-].[Na+]") == "QTBSBXVTEAMEQO-UHFFFAOYSA-M"
 
 
-def test_pubchem_property_404_returns_none():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
-        assert _pubchem_property("not_a_smiles", "IUPACName") is None
-
-
-def test_pubchem_property_empty_body_returns_none():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "   ")):
-        assert _pubchem_property("CCO", "IUPACName") is None
-
-
-def test_pubchem_property_retries_503_then_succeeds(monkeypatch):
-    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
-    responses = [_mock_response(503, headers={"Retry-After": "1"}), _mock_response(200, "ethanol")]
-    with patch("pipeline.namer.requests.request", side_effect=responses):
-        result = _pubchem_property("CCO", "IUPACName")
-    assert result == "ethanol"
-
-
-def test_pubchem_property_exhausts_retries_raises():
-    with patch("pipeline.namer.time.sleep"):
-        with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
-            with pytest.raises(_RetriesExhausted):
-                _pubchem_property("CCO", "IUPACName")
-
-
-def test_pubchem_property_network_error_retries_then_raises():
-    with patch("pipeline.namer.time.sleep"):
-        with patch("pipeline.namer.requests.request", side_effect=req.RequestException("timeout")):
-            with pytest.raises(_RetriesExhausted):
-                _pubchem_property("CCO", "IUPACName")
-
-
-def test_request_with_backoff_falls_back_on_non_numeric_retry_after(monkeypatch):
-    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
-    responses = [_mock_response(503, headers={"Retry-After": "Wed, 21 Oct 2025 07:28:00 GMT"}), _mock_response(200, "ethanol")]
-    with patch("pipeline.namer.requests.request", side_effect=responses):
-        result = _pubchem_property("CCO", "IUPACName")
-    assert result == "ethanol"
-
-
-# --- _pubchem_synonyms ---
-
-def test_pubchem_synonyms_success_returns_line_list():
-    text = "2-acetyloxybenzoic acid\n2-Acetoxybenzoic acid\n50-78-2\n"
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, text)):
-        result = _pubchem_synonyms("CC(=O)Oc1ccccc1C(=O)O")
-    assert result == ["2-acetyloxybenzoic acid", "2-Acetoxybenzoic acid", "50-78-2"]
-
-
-def test_pubchem_synonyms_404_returns_empty_list():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
-        assert _pubchem_synonyms("not_a_smiles") == []
-
-
-# --- _cir_iupac_name ---
-
-def test_cir_iupac_name_success():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "ethanol")) as mock_req:
-        result = _cir_iupac_name("CCO")
-    assert result == "ethanol"
-    args, kwargs = mock_req.call_args
-    assert args[0] == "GET"
-    assert args[1] == "https://cactus.nci.nih.gov/chemical/structure/CCO/iupac_name"
-
-
-def test_cir_iupac_name_url_encodes_slash_characters():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "but-2-ene")) as mock_req:
-        _cir_iupac_name("C/C=C/C")
-    args, _ = mock_req.call_args
-    assert "/" not in args[1].split("chemical/structure/")[1].split("/iupac_name")[0]
-
-
-def test_cir_iupac_name_404_returns_none():
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
-        assert _cir_iupac_name("some_smiles") is None
-
-
-from pipeline.namer import lookup_iupac, lookup_trivial_name, NameLookupError
-from pipeline.name_cache import get_cached
-
-
-def test_lookup_iupac_pubchem_success(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "ethanol")):
-        name, source = lookup_iupac("CCO")
-    assert (name, source) == ("ethanol", "pubchem")
-    assert get_cached("CCO", "iupac", "pubchem", db_path=tmp_path / "cache.db") == ("ethanol", True)
-
-
-def test_lookup_iupac_uses_cache_on_second_call(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "ethanol")) as mock_req:
-        lookup_iupac("CCO")
-        lookup_iupac("CCO")
-    assert mock_req.call_count == 1
-
-
-def test_lookup_iupac_falls_back_to_cir_when_pubchem_not_found(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    responses = [_mock_response(404), _mock_response(200, "ethanol")]
-    with patch("pipeline.namer.requests.request", side_effect=responses):
-        name, source = lookup_iupac("CCO")
-    assert (name, source) == ("ethanol", "cir")
-
-
-def test_lookup_iupac_falls_back_to_cir_when_pubchem_unreachable(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
-    responses = [_mock_response(503)] * 3 + [_mock_response(200, "ethanol")]
-    with patch("pipeline.namer.requests.request", side_effect=responses):
-        name, source = lookup_iupac("CCO")
-    assert (name, source) == ("ethanol", "cir")
-
-
-def test_lookup_iupac_raises_when_both_sources_unreachable(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
-        with pytest.raises(NameLookupError):
-            lookup_iupac("CCO")
-
-
-def test_lookup_iupac_confirmed_not_found_in_both_returns_none(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
-        name, source = lookup_iupac("XYZ")
-    assert (name, source) == (None, "cir")
-
-
-def test_lookup_iupac_strips_salts_before_lookup(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, "acetate")) as mock_req:
-        lookup_iupac("CC(=O)[O-].[Na+]")
-    args, kwargs = mock_req.call_args
-    assert kwargs["data"] == {"smiles": "CC(=O)[O-]"}
-
-
-def test_lookup_trivial_name_returns_first_synonym(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    text = "2-acetyloxybenzoic acid\n2-Acetoxybenzoic acid\n50-78-2\n"
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(200, text)):
-        result = lookup_trivial_name("CC(=O)Oc1ccccc1C(=O)O")
-    assert result == "2-acetyloxybenzoic acid"
-
-
-def test_lookup_trivial_name_no_synonyms_returns_none(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(404)):
-        assert lookup_trivial_name("XYZ") is None
-
-
-def test_lookup_trivial_name_raises_on_unreachable(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    monkeypatch.setattr("pipeline.namer.time.sleep", lambda _s: None)
-    with patch("pipeline.namer.requests.request", return_value=_mock_response(503)):
-        with pytest.raises(NameLookupError):
-            lookup_trivial_name("CCO")
-
-
-def test_lookup_iupac_wraps_cache_error_as_name_lookup_error(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.namer.DEFAULT_DB_PATH", tmp_path / "cache.db")
-    monkeypatch.setattr(
-        "pipeline.namer.get_cached",
-        lambda *a, **k: (_ for _ in ()).throw(__import__("sqlite3").OperationalError("database is locked")),
-    )
+def test_inchikey_for_raises_on_unparseable_smiles():
     with pytest.raises(NameLookupError):
-        lookup_iupac("CCO")
+        _inchikey_for("not_a_smiles")
+
+
+# --- lookup_iupac ---
+
+def test_lookup_iupac_returns_name_on_hit(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: ("ethanol", "alcohol"))
+    assert lookup_iupac(ETHANOL_SMILES) == "ethanol"
+
+
+def test_lookup_iupac_returns_none_on_confirmed_miss(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: (None, None))
+    assert lookup_iupac(ETHANOL_SMILES) is None
+
+
+def test_lookup_iupac_raises_when_dataset_not_downloaded(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: False)
+    with pytest.raises(NameLookupError):
+        lookup_iupac(ETHANOL_SMILES)
+
+
+def test_lookup_iupac_raises_on_unparseable_smiles(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    with pytest.raises(NameLookupError):
+        lookup_iupac("not_a_smiles")
+
+
+# --- lookup_trivial_name ---
+
+def test_lookup_trivial_name_returns_name_on_hit(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: ("ethanol", "alcohol"))
+    assert lookup_trivial_name(ETHANOL_SMILES) == "alcohol"
+
+
+def test_lookup_trivial_name_returns_none_on_confirmed_miss(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: (None, None))
+    assert lookup_trivial_name(ETHANOL_SMILES) is None
+
+
+def test_lookup_trivial_name_raises_when_dataset_not_downloaded(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: False)
+    with pytest.raises(NameLookupError):
+        lookup_trivial_name(ETHANOL_SMILES)
+
+
+# --- both call sites use the computed InChIKey, not the raw SMILES ---
+
+def test_lookup_uses_computed_inchikey(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    calls = []
+
+    def _fake_lookup(inchikey):
+        calls.append(inchikey)
+        return (None, None)
+
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", _fake_lookup)
+    lookup_iupac(ETHANOL_SMILES)
+    assert calls == [ETHANOL_INCHIKEY]

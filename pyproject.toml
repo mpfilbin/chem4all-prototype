@@ -16,6 +16,7 @@ dependencies = [
     "cairosvg",
     "requests",
     "pystow",
+    "rdkit==2026.3.4",
 ]
 
 [project.optional-dependencies]
