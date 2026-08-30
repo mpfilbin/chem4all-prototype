@@ -17,6 +17,7 @@ class FilePickerWindow(QWidget):
         self._config = config
         self._config_path = config_path
         self._download_worker = None
+        self._dataset_download_worker = None
         self.setWindowTitle("chem4all")
         self.setMinimumWidth(440)
         self.setAcceptDrops(True)
@@ -27,6 +28,9 @@ class FilePickerWindow(QWidget):
 
         self._model_banner = self._build_model_banner()
         layout.addWidget(self._model_banner)
+
+        self._dataset_banner = self._build_dataset_banner()
+        layout.addWidget(self._dataset_banner)
 
         self._model_load_label = QLabel()
         self._model_load_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -73,6 +77,10 @@ class FilePickerWindow(QWidget):
         from gui.model_manager import is_model_ready
         if is_model_ready():
             self._model_banner.hide()
+
+        from pipeline.name_dataset import is_dataset_ready
+        if is_dataset_ready():
+            self._dataset_banner.hide()
 
     def set_model_load_time(self, elapsed: float) -> None:
         self._model_load_label.setText(f"DECIMER model loaded in {elapsed:.1f} s")
@@ -132,12 +140,74 @@ class FilePickerWindow(QWidget):
 
         return banner
 
+    def _build_dataset_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setFrameShape(QFrame.Shape.StyledPanel)
+        banner.setStyleSheet(
+            "QFrame { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }"
+        )
+
+        vbox = QVBoxLayout(banner)
+        vbox.setContentsMargins(12, 10, 12, 10)
+        vbox.setSpacing(6)
+
+        self._dataset_status_label = QLabel(
+            "⚠  Naming dataset not downloaded. "
+            "IUPAC and common name lookups will not work until the dataset is installed. "
+            "Click the button below to download it."
+        )
+        self._dataset_status_label.setWordWrap(True)
+        self._dataset_status_label.setStyleSheet("QLabel { color: #664d03; }")
+        vbox.addWidget(self._dataset_status_label)
+
+        self._dataset_progress_bar = QProgressBar()
+        self._dataset_progress_bar.setRange(0, 100)
+        self._dataset_progress_bar.setTextVisible(True)
+        self._dataset_progress_bar.hide()
+        vbox.addWidget(self._dataset_progress_bar)
+
+        self._dataset_bytes_label = QLabel()
+        self._dataset_bytes_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._dataset_bytes_label.setStyleSheet("QLabel { color: #664d03; }")
+        self._dataset_bytes_label.hide()
+        vbox.addWidget(self._dataset_bytes_label)
+
+        self._dataset_download_btn = QPushButton("Download Naming Dataset")
+        self._dataset_download_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._dataset_download_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffce3a, stop:1 #ffc107);"
+            "  color: #212529; border: 1px solid #d39e00; border-bottom: 2px solid #b38600;"
+            "  border-radius: 6px; padding: 8px 16px; font-weight: 600;"
+            "}"
+            "QPushButton:hover {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffd65c, stop:1 #ffcd39);"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #e0a800; border: 1px solid #b38600; border-bottom: 1px solid #b38600;"
+            "  padding-top: 9px; padding-bottom: 7px;"
+            "}"
+            "QPushButton:disabled { background: #ffe69c; color: #8a6d1f; border: 1px solid #ffe69c; }"
+        )
+        self._dataset_download_btn.clicked.connect(self._start_dataset_download)
+        vbox.addWidget(self._dataset_download_btn)
+
+        return banner
+
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._download_worker is not None and self._download_worker.isRunning():
             QMessageBox.information(
                 self,
                 "Download in Progress",
                 "Please wait for the DECIMER model download to finish before closing chem4all.",
+            )
+            event.ignore()
+            return
+        if self._dataset_download_worker is not None and self._dataset_download_worker.isRunning():
+            QMessageBox.information(
+                self,
+                "Download in Progress",
+                "Please wait for the naming dataset download to finish before closing chem4all.",
             )
             event.ignore()
             return
@@ -202,6 +272,52 @@ class FilePickerWindow(QWidget):
             return
         self._download_worker.wait()
         self._download_worker = None
+
+    def _start_dataset_download(self) -> None:
+        from gui.dataset_manager import DatasetDownloadWorker
+        self._dataset_download_btn.setEnabled(False)
+        self._dataset_download_btn.setText("Downloading…")
+        self._dataset_progress_bar.show()
+        self._dataset_bytes_label.show()
+        self._open_btn.setEnabled(False)
+
+        self._dataset_download_worker = DatasetDownloadWorker()
+        self._dataset_download_worker.status.connect(self._dataset_status_label.setText)
+        self._dataset_download_worker.progress.connect(self._on_dataset_download_progress)
+        self._dataset_download_worker.finished.connect(self._on_dataset_download_finished)
+        self._dataset_download_worker.error.connect(self._on_dataset_download_error)
+        self._dataset_download_worker.start()
+
+    def _on_dataset_download_progress(self, done: int, total: int) -> None:
+        if total > 0:
+            self._dataset_progress_bar.setRange(0, 100)
+            self._dataset_progress_bar.setValue(int(done * 100 / total))
+            done_mb = done / 1_048_576
+            total_mb = total / 1_048_576
+            self._dataset_bytes_label.setText(f"{done_mb:.1f} / {total_mb:.1f} MB")
+        else:
+            self._dataset_progress_bar.setRange(0, 0)
+            self._dataset_bytes_label.clear()
+
+    def _on_dataset_download_finished(self) -> None:
+        self._cleanup_dataset_download_worker()
+        self._dataset_banner.hide()
+        self._open_btn.setEnabled(True)
+
+    def _on_dataset_download_error(self, msg: str) -> None:
+        self._cleanup_dataset_download_worker()
+        self._dataset_status_label.setText(f"⚠  Download failed: {msg}")
+        self._dataset_progress_bar.hide()
+        self._dataset_bytes_label.hide()
+        self._dataset_download_btn.setText("Retry Download")
+        self._dataset_download_btn.setEnabled(True)
+        self._open_btn.setEnabled(True)
+
+    def _cleanup_dataset_download_worker(self) -> None:
+        if self._dataset_download_worker is None:
+            return
+        self._dataset_download_worker.wait()
+        self._dataset_download_worker = None
 
     def _open_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
