@@ -42,7 +42,7 @@ Once the download finishes, chem4all offers to restart so the model is loaded in
 
 <img src="docs/images/model-restart-prompt.png" alt="chem4all dialog asking whether to restart the app now that the DECIMER model has finished downloading, with No and Yes buttons" width="350">
 
-The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, your OpenRouter API key, and shows where DECIMER's model files are stored on disk. It also has a **Diagnostic Logging** section, off by default, that writes a timestamped log file per session to a folder you choose (defaults to `~/Desktop/chem4all-logs/`). When enabled, it captures document opens, per-image extraction and DECIMER recognition, OpenRouter calls (IUPAC/common name lookup, image descriptions), DECIMER model load timing, and file writes — with timing and results for each step. This is the file to enable and attach when reporting a bug: it gives a developer a step-by-step trace of what chem4all did without needing you to reproduce the issue live:
+The Settings dialog controls thumbnail and recognition image sizes, output mode (new file vs. in-place), review page size, and your OpenRouter API key, shows where DECIMER's model files are stored on disk, and has a **Naming Dataset** section for downloading or refreshing the offline IUPAC/common-name dataset. It also has a **Diagnostic Logging** section, off by default, that writes a timestamped log file per session to a folder you choose (defaults to `~/Desktop/chem4all-logs/`). When enabled, it captures document opens, per-image extraction and DECIMER recognition, naming dataset lookups, OpenRouter calls (image descriptions), DECIMER model load timing, and file writes — with timing and results for each step. This is the file to enable and attach when reporting a bug: it gives a developer a step-by-step trace of what chem4all did without needing you to reproduce the issue live:
 
 <img src="docs/images/settings-screen.png" alt="chem4all Settings dialog, showing thumbnail and recognition size, output mode, review page size, OpenRouter API key, DECIMER model file locations, and the Diagnostic Logging section with its enable checkbox and log folder path" width="500">
 
@@ -68,7 +68,7 @@ The written alt-text shows up as native PowerPoint/Word alt-text, ready for any 
 
 1. **Extract** — images are pulled from your PPTX or DOCX file and downscaled for processing
 2. **Select** — choose which images to process and what kind of output to produce for each (SMILES, IUPAC name, common name, or image description)
-3. **Recognize** — DECIMER identifies chemical structures; non-chemical images are described by GPT-4o vision via OpenRouter
+3. **Recognize** — DECIMER identifies chemical structures; IUPAC and common names are looked up offline in a local PubChem-derived dataset; non-chemical images are described by GPT-4o vision via OpenRouter
 4. **Review** — an instructor approves, edits, or overrides each prediction
 5. **Write** — approved alt-text is written back to the document
 
@@ -76,7 +76,8 @@ The written alt-text shows up as native PowerPoint/Word alt-text, ready for any 
 
 - Python 3.9–3.12 — TensorFlow (required by DECIMER) does not publish wheels for Python 3.13+
 - Homebrew (macOS only, source install only) — required for the `cairo` system library used for SVG support. Not needed if you download the packaged `.app` — cairo is bundled.
-- An [OpenRouter](https://openrouter.ai) API key if you intend to use IUPAC name lookup, common name lookup, or image description (not needed for SMILES-only use)
+- An [OpenRouter](https://openrouter.ai) API key if you intend to use image description (not needed for SMILES-only use, or for IUPAC/common name lookup)
+- For IUPAC and common name lookup: a one-time download of the offline naming dataset, from **Settings** or the first-run banner. No API key or internet connection is needed once it's downloaded.
 
 ## Installation
 
@@ -116,6 +117,10 @@ python3 main.py --download-model
 
 > **Note:** Ensure you have a stable internet connection and at least 2 GB of free disk space.
 
+#### 3b. (Optional) Download the offline naming dataset
+
+IUPAC and common name lookups read from a local PubChem-derived dataset, downloaded once from **Settings** (or the first-run banner on the main screen). Budget several GB of additional free disk space for it. Once downloaded, lookups run entirely offline — no API key, no internet connection.
+
 #### 4. (Optional) Configure your OpenRouter API key
 
 Set the environment variable before launching, or enter the key in the GUI under **Settings**:
@@ -145,8 +150,8 @@ chem4all
 | Option | What it produces |
 |---|---|
 | SMILES | The SMILES string of the chemical structure (DECIMER) |
-| IUPAC Name | Human-readable IUPAC name derived from the SMILES (GPT-4o via OpenRouter) |
-| Common Name | Everyday common name derived from the SMILES (GPT-4o via OpenRouter) |
+| IUPAC Name | Human-readable IUPAC name derived from the SMILES (offline lookup in a local PubChem-derived dataset) |
+| Common Name | Everyday common name derived from the SMILES (offline lookup in a local PubChem-derived dataset) |
 | Describe Image | Single-sentence alt-text description for non-chemical images (GPT-4o vision via OpenRouter) |
 
 Uncheck an image to exclude it from processing. Each included image needs at least one prediction type checked, or an error banner blocks the button. Click **Identify Selected** when ready.
@@ -198,7 +203,7 @@ Settings are stored in `~/.chem4all/config.json` and created with defaults on fi
 | `recognition_max_size` | `1024` | Maximum pixel dimension of images sent to DECIMER |
 | `output_mode` | `"new_file"` | `"new_file"` creates a new file; `"in_place"` overwrites the original |
 | `page_size` | `5` | Number of images shown per page in the review UI |
-| `openrouter_api_key` | `""` | OpenRouter API key (overridden by the `OPENROUTER_API_KEY` environment variable) |
+| `openrouter_api_key` | `""` | OpenRouter API key, used for the Describe Image feature only (overridden by the `OPENROUTER_API_KEY` environment variable) |
 | `diagnostic_logging_enabled` | `false` | Write a diagnostic log file per session, for troubleshooting |
 | `diagnostic_log_dir` | `~/Desktop/chem4all-logs` | Folder where diagnostic log files are written |
 
@@ -220,7 +225,7 @@ chem4all/
 ├── pipeline/
 │   ├── extractor.py         # Extract images from PPTX/DOCX
 │   ├── recognizer.py        # Run DECIMER on images
-│   ├── namer.py             # IUPAC and common name lookup via OpenRouter
+│   ├── namer.py             # IUPAC and common name lookup via the local offline dataset
 │   ├── describer.py         # Image description via GPT-4o vision
 │   ├── reviewer.py          # CLI auto-accept and review file I/O
 │   └── writer.py            # Write alt-text back to documents

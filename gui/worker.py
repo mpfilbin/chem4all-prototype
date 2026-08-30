@@ -24,7 +24,7 @@ class RecognizerWorker(QThread):
 
     def run(self) -> None:
         from pipeline.describer import describe_image
-        from pipeline.namer import lookup_iupac, lookup_trivial_name
+        from pipeline.namer import lookup_iupac, lookup_trivial_name, NameLookupError
         api_key = os.environ.get("OPENROUTER_API_KEY") or self._config.openrouter_api_key
         total = len(self._records)
         for i, record in enumerate(self._records):
@@ -51,9 +51,9 @@ class RecognizerWorker(QThread):
                         try:
                             log.debug("Looking up IUPAC name for %s...", record.source_ref)
                             t0 = time.perf_counter()
-                            record.iupac_name = lookup_iupac(smiles, api_key, record.recognition_bytes)
+                            record.iupac_name = lookup_iupac(smiles)
                             log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.iupac_name, time.perf_counter() - t0)
-                        except Exception as exc:
+                        except NameLookupError as exc:
                             log.warning("IUPAC lookup failed for %s: %s", record.source_ref, exc)
                             self.error.emit(f"IUPAC lookup failed for {record.source_ref}: {exc}")
 
@@ -62,9 +62,9 @@ class RecognizerWorker(QThread):
                         try:
                             log.debug("Looking up common name for %s...", record.source_ref)
                             t0 = time.perf_counter()
-                            record.trivial_name = lookup_trivial_name(smiles, api_key, record.recognition_bytes)
+                            record.trivial_name = lookup_trivial_name(smiles)
                             log.debug("%s -> '%s' (%.2fs)", record.source_ref, record.trivial_name, time.perf_counter() - t0)
-                        except Exception as exc:
+                        except NameLookupError as exc:
                             log.warning("Common name lookup failed for %s: %s", record.source_ref, exc)
                             self.error.emit(f"Common name lookup failed for {record.source_ref}: {exc}")
 

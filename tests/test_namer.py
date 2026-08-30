@@ -1,140 +1,110 @@
+import sqlite3
+
 import pytest
-import requests as req
-from unittest.mock import MagicMock, patch
-from pipeline.namer import lookup_iupac, lookup_trivial_name
+from pipeline.namer import lookup_iupac, lookup_trivial_name, NameLookupError, _inchikey_for
+
+ETHANOL_SMILES = "CCO"
+ETHANOL_INCHIKEY = "LFQSCWFLJHTTHZ-UHFFFAOYSA-N"
 
 
-def _mock_response(text: str, status: int = 200) -> MagicMock:
-    resp = MagicMock()
-    resp.ok = status < 400
-    resp.status_code = status
-    resp.text = text
-    resp.json.return_value = {
-        "choices": [{"message": {"content": f"  {text}  "}}]
-    }
-    return resp
+# --- _inchikey_for ---
+
+def test_inchikey_for_computes_expected_key():
+    assert _inchikey_for(ETHANOL_SMILES) == ETHANOL_INCHIKEY
+
+
+def test_inchikey_for_strips_salts_before_computing():
+    # Sodium acetate: without stripping the [Na+] fragment first, RDKit would compute
+    # a different, salt-inclusive InChIKey that wouldn't match the parent compound's
+    # entry in the dataset.
+    assert _inchikey_for("CC(=O)[O-].[Na+]") == "QTBSBXVTEAMEQO-UHFFFAOYSA-M"
+
+
+def test_inchikey_for_raises_on_unparseable_smiles():
+    with pytest.raises(NameLookupError):
+        _inchikey_for("not_a_smiles")
 
 
 # --- lookup_iupac ---
 
-def test_lookup_iupac_success(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_iupac("c1ccccc1", "test-key")
-    assert result == "benzene"
-    call_kwargs = mock_post.call_args
-    payload = call_kwargs.kwargs["json"] if call_kwargs.kwargs else call_kwargs[1]["json"]
-    assert payload["model"] == "openai/gpt-4o"
-    assert payload["messages"][1]["content"] == "c1ccccc1"
+def test_lookup_iupac_returns_name_on_hit(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: ("ethanol", "alcohol"))
+    assert lookup_iupac(ETHANOL_SMILES) == "ethanol"
 
 
-def test_lookup_iupac_env_var_takes_precedence(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "env-key")
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("ethanol")) as mock_post:
-        result = lookup_iupac("CCO", "config-key")
-    assert result == "ethanol"
-    headers = mock_post.call_args.kwargs["headers"]
-    assert headers["Authorization"] == "Bearer env-key"
+def test_lookup_iupac_returns_none_on_confirmed_miss(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: (None, None))
+    assert lookup_iupac(ETHANOL_SMILES) is None
 
 
-def test_lookup_iupac_no_key_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="No OpenRouter API key"):
-        lookup_iupac("CCO", "")
+def test_lookup_iupac_raises_when_dataset_not_downloaded(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: False)
+    with pytest.raises(NameLookupError):
+        lookup_iupac(ETHANOL_SMILES)
 
 
-def test_lookup_iupac_non_200_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("Unauthorized", 401)):
-        with pytest.raises(RuntimeError, match="401"):
-            lookup_iupac("CCO", "bad-key")
+def test_lookup_iupac_wraps_sqlite_error(monkeypatch):
+    # A corrupt/unreadable dataset file must surface as NameLookupError — a bare
+    # sqlite3.Error escapes RecognizerWorker's except clause and kills the batch.
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+
+    def _raise(inchikey):
+        raise sqlite3.DatabaseError("file is not a database")
+
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", _raise)
+    with pytest.raises(NameLookupError):
+        lookup_iupac(ETHANOL_SMILES)
 
 
-def test_lookup_iupac_network_error_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", side_effect=req.RequestException("timeout")):
-        with pytest.raises(RuntimeError, match="Network error"):
-            lookup_iupac("CCO", "any-key")
-
-
-def test_lookup_iupac_with_image_sends_multimodal_content(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_iupac("c1ccccc1", "test-key", image_bytes=b"fakepngbytes")
-    assert result == "benzene"
-    payload = mock_post.call_args.kwargs["json"]
-    content = payload["messages"][1]["content"]
-    assert isinstance(content, list)
-    assert content[0] == {"type": "text", "text": "c1ccccc1"}
-    assert content[1]["type"] == "image_url"
-    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
-
-
-def test_lookup_iupac_without_image_sends_plain_string_content(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        lookup_iupac("c1ccccc1", "test-key")
-    payload = mock_post.call_args.kwargs["json"]
-    assert payload["messages"][1]["content"] == "c1ccccc1"
-
-
-def test_lookup_iupac_system_prompt_forbids_trivial_name_fallback(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        lookup_iupac("c1ccccc1", "test-key")
-    payload = mock_post.call_args.kwargs["json"]
-    system_content = payload["messages"][0]["content"].lower()
-    assert "systematic" in system_content
-    assert "even if you recognize" in system_content
+def test_lookup_iupac_raises_on_unparseable_smiles(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    with pytest.raises(NameLookupError):
+        lookup_iupac("not_a_smiles")
 
 
 # --- lookup_trivial_name ---
 
-def test_lookup_trivial_name_success(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_trivial_name("c1ccccc1", "test-key")
-    assert result == "benzene"
-    payload = mock_post.call_args.kwargs["json"]
-    assert payload["messages"][1]["content"] == "c1ccccc1"
+def test_lookup_trivial_name_returns_name_on_hit(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: ("ethanol", "alcohol"))
+    assert lookup_trivial_name(ETHANOL_SMILES) == "alcohol"
 
 
-def test_lookup_trivial_name_env_var_takes_precedence(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "env-key")
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("aspirin")) as mock_post:
-        result = lookup_trivial_name("CC(=O)Oc1ccccc1C(=O)O", "config-key")
-    assert result == "aspirin"
-    assert mock_post.call_args.kwargs["headers"]["Authorization"] == "Bearer env-key"
+def test_lookup_trivial_name_returns_none_on_confirmed_miss(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", lambda inchikey: (None, None))
+    assert lookup_trivial_name(ETHANOL_SMILES) is None
 
 
-def test_lookup_trivial_name_no_key_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="No OpenRouter API key"):
-        lookup_trivial_name("CCO", "")
+def test_lookup_trivial_name_raises_when_dataset_not_downloaded(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: False)
+    with pytest.raises(NameLookupError):
+        lookup_trivial_name(ETHANOL_SMILES)
 
 
-def test_lookup_trivial_name_non_200_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("Forbidden", 403)):
-        with pytest.raises(RuntimeError, match="403"):
-            lookup_trivial_name("CCO", "bad-key")
+def test_lookup_trivial_name_wraps_sqlite_error(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+
+    def _raise(inchikey):
+        raise sqlite3.DatabaseError("file is not a database")
+
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", _raise)
+    with pytest.raises(NameLookupError):
+        lookup_trivial_name(ETHANOL_SMILES)
 
 
-def test_lookup_trivial_name_network_error_raises(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", side_effect=req.RequestException("timeout")):
-        with pytest.raises(RuntimeError, match="Network error"):
-            lookup_trivial_name("CCO", "any-key")
+# --- both call sites use the computed InChIKey, not the raw SMILES ---
 
+def test_lookup_uses_computed_inchikey(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+    calls = []
 
-def test_lookup_trivial_name_with_image_sends_multimodal_content(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    with patch("pipeline.namer.requests.post", return_value=_mock_response("benzene")) as mock_post:
-        result = lookup_trivial_name("c1ccccc1", "test-key", image_bytes=b"fakepngbytes")
-    assert result == "benzene"
-    payload = mock_post.call_args.kwargs["json"]
-    content = payload["messages"][1]["content"]
-    assert isinstance(content, list)
-    assert content[0] == {"type": "text", "text": "c1ccccc1"}
-    assert content[1]["type"] == "image_url"
-    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    def _fake_lookup(inchikey):
+        calls.append(inchikey)
+        return (None, None)
+
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", _fake_lookup)
+    lookup_iupac(ETHANOL_SMILES)
+    assert calls == [ETHANOL_INCHIKEY]

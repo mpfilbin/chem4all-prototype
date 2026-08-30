@@ -1,75 +1,43 @@
 from __future__ import annotations
-import base64
-import os
-import requests
+import sqlite3
 
-_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-_MODEL = "openai/gpt-4o"
-
-_SYSTEM_IUPAC = (
-    "You are a chemistry expert. Given a SMILES string (and, if provided, an image of "
-    "the compound's 2D structure), respond with only the IUPAC name of the compound — "
-    "no explanation, no punctuation, just the name. Always give the systematic IUPAC "
-    "name, even if you recognize the compound by a common, trivial, or trade name."
-)
-_SYSTEM_TRIVIAL = (
-    "You are a chemistry expert. Given a SMILES string (and, if provided, an image of "
-    "the compound's 2D structure), respond with only the most widely used common or "
-    "trivial name of the compound (not the IUPAC systematic name) — no explanation, "
-    "no punctuation, just the name. "
-    "If no well-known trivial name exists, respond with the IUPAC name."
-)
+from rdkit import Chem
+from pipeline import name_dataset
+from pipeline.salts import strip_to_parent
 
 
-def _build_content(smiles: str, image_bytes: bytes | None) -> str | list[dict]:
-    if not image_bytes:
-        return smiles
-    b64 = base64.b64encode(image_bytes).decode()
-    data_url = f"data:image/png;base64,{b64}"
-    return [
-        {"type": "text", "text": smiles},
-        {"type": "image_url", "image_url": {"url": data_url}},
-    ]
+class NameLookupError(RuntimeError):
+    """Unparseable SMILES, or the local dataset isn't downloaded yet — distinct
+    from a confirmed 'not found', which returns None instead."""
 
 
-def _lookup(smiles: str, api_key: str, system_prompt: str, image_bytes: bytes | None = None) -> str:
-    resolved_key = os.environ.get("OPENROUTER_API_KEY") or api_key
-    if not resolved_key:
-        raise RuntimeError(
-            "No OpenRouter API key configured. "
-            "Add one in Settings or set the OPENROUTER_API_KEY environment variable."
-        )
+def _inchikey_for(smiles: str) -> str:
+    canonical = strip_to_parent(smiles)
+    mol = Chem.MolFromSmiles(canonical)
+    if mol is None:
+        raise NameLookupError(f"Could not parse SMILES: {canonical}")
+    return Chem.MolToInchiKey(mol)
+
+
+def _lookup_safe(inchikey: str) -> tuple[str | None, str | None]:
+    """Wraps name_dataset.lookup so a missing/corrupt dataset file surfaces as
+    NameLookupError. A bare sqlite3.Error would escape RecognizerWorker's
+    except clause and abort the whole recognition batch."""
     try:
-        response = requests.post(
-            _ENDPOINT,
-            headers={
-                "Authorization": f"Bearer {resolved_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "chem4all",
-            },
-            json={
-                "model": _MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": _build_content(smiles, image_bytes)},
-                ],
-            },
-            timeout=30,
-        )
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Network error during name lookup: {exc}") from exc
-
-    if not response.ok:
-        raise RuntimeError(
-            f"OpenRouter returned {response.status_code}: {response.text[:200]}"
-        )
-
-    return response.json()["choices"][0]["message"]["content"].strip()
+        return name_dataset.lookup(inchikey)
+    except sqlite3.Error as exc:
+        raise NameLookupError(f"Naming dataset could not be read: {exc}") from exc
 
 
-def lookup_iupac(smiles: str, api_key: str, image_bytes: bytes | None = None) -> str:
-    return _lookup(smiles, api_key, _SYSTEM_IUPAC, image_bytes)
+def lookup_iupac(smiles: str) -> str | None:
+    if not name_dataset.is_dataset_ready():
+        raise NameLookupError("Naming dataset not downloaded — see Settings.")
+    iupac_name, _ = _lookup_safe(_inchikey_for(smiles))
+    return iupac_name
 
 
-def lookup_trivial_name(smiles: str, api_key: str, image_bytes: bytes | None = None) -> str:
-    return _lookup(smiles, api_key, _SYSTEM_TRIVIAL, image_bytes)
+def lookup_trivial_name(smiles: str) -> str | None:
+    if not name_dataset.is_dataset_ready():
+        raise NameLookupError("Naming dataset not downloaded — see Settings.")
+    _, trivial_name = _lookup_safe(_inchikey_for(smiles))
+    return trivial_name

@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QDialog, QFormLayout, QCheckBox,
     QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox,
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel, QLineEdit, QPushButton,
-    QFileDialog, QMessageBox,
+    QFileDialog, QMessageBox, QProgressBar,
 )
 from config import Config, save_config, default_log_dir
 from logging_setup import configure_logging
@@ -85,6 +85,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout()
         layout.addLayout(form)
         layout.addWidget(self._build_openrouter_section())
+        layout.addWidget(self._build_naming_dataset_section())
         layout.addWidget(self._build_model_info())
         layout.addWidget(self._build_diagnostic_logging_section())
         layout.addWidget(buttons)
@@ -103,12 +104,129 @@ class SettingsDialog(QDialog):
         key_row.addWidget(self._api_key_field)
         vbox.addLayout(key_row)
 
-        note = QLabel("The OPENROUTER_API_KEY environment variable takes precedence if set.")
+        note = QLabel(
+            "Used for the \"Describe Image\" feature only. "
+            "The OPENROUTER_API_KEY environment variable takes precedence if set."
+        )
         note.setStyleSheet("color: #6c757d; font-size: 11px;")
         note.setWordWrap(True)
         vbox.addWidget(note)
 
         return box
+
+    def _build_naming_dataset_section(self) -> QGroupBox:
+        from pipeline.name_dataset import dataset_path, is_dataset_ready
+        from gui.dataset_manager import dataset_last_downloaded
+
+        box = QGroupBox("Naming Dataset")
+        vbox = QVBoxLayout(box)
+        vbox.setSpacing(6)
+
+        ready = is_dataset_ready()
+        last_downloaded = dataset_last_downloaded()
+        if ready and last_downloaded is not None:
+            status_text = f"✓  Downloaded  (last updated: {last_downloaded:%Y-%m-%d})"
+            status_color = "#155724"
+        elif ready:
+            status_text = "✓  Downloaded"
+            status_color = "#155724"
+        else:
+            status_text = "✗  Not downloaded"
+            status_color = "#721c24"
+
+        status_row = QHBoxLayout()
+        status_row.addWidget(QLabel("Status:"))
+        self._dataset_status_label = QLabel(status_text)
+        self._dataset_status_label.setStyleSheet(f"color: {status_color}; font-weight: bold;")
+        status_row.addWidget(self._dataset_status_label)
+        status_row.addStretch()
+        vbox.addLayout(status_row)
+
+        path_row = QHBoxLayout()
+        path_row.addWidget(QLabel("Location:"))
+        path_edit = QLineEdit(str(dataset_path().parent))
+        path_edit.setReadOnly(True)
+        path_row.addWidget(path_edit)
+        self._dataset_show_btn = QPushButton("Show in Finder")
+        self._dataset_show_btn.setEnabled(dataset_path().parent.exists())
+        self._dataset_show_btn.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(dataset_path().parent)))
+        )
+        path_row.addWidget(self._dataset_show_btn)
+        vbox.addLayout(path_row)
+
+        self._dataset_refresh_btn = QPushButton("Refresh Dataset" if ready else "Download Dataset")
+        self._dataset_refresh_btn.clicked.connect(self._start_dataset_download)
+        vbox.addWidget(self._dataset_refresh_btn)
+
+        self._dataset_progress_bar = QProgressBar()
+        self._dataset_progress_bar.setTextVisible(False)
+        self._dataset_progress_bar.hide()
+        vbox.addWidget(self._dataset_progress_bar)
+
+        note = QLabel(
+            "IUPAC and trivial names are looked up from a local offline dataset. "
+            "No internet connection is required."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #6c757d; font-size: 11px;")
+        vbox.addWidget(note)
+
+        self._dataset_download_worker = None
+        return box
+
+    def _start_dataset_download(self) -> None:
+        if self._dataset_download_worker is not None and self._dataset_download_worker.isRunning():
+            return
+        from gui.dataset_manager import DatasetDownloadWorker
+
+        self._dataset_refresh_btn.setEnabled(False)
+        self._dataset_progress_bar.setRange(0, 0)
+        self._dataset_progress_bar.show()
+
+        worker = DatasetDownloadWorker()
+        worker.status.connect(self._dataset_status_label.setText)
+        worker.progress.connect(self._on_dataset_progress)
+        worker.finished.connect(self._on_dataset_download_finished)
+        worker.error.connect(self._on_dataset_download_error)
+        self._dataset_download_worker = worker
+        worker.start()
+
+    def _on_dataset_progress(self, done: int, total: int) -> None:
+        if total > 0:
+            self._dataset_progress_bar.setRange(0, 100)
+            self._dataset_progress_bar.setValue(int(done * 100 / total))
+        else:
+            self._dataset_progress_bar.setRange(0, 0)
+
+    def _on_dataset_download_finished(self) -> None:
+        from pipeline.name_dataset import dataset_path
+        from gui.dataset_manager import dataset_last_downloaded
+
+        self._dataset_progress_bar.hide()
+        self._dataset_refresh_btn.setEnabled(True)
+        self._dataset_refresh_btn.setText("Refresh Dataset")
+        self._dataset_show_btn.setEnabled(dataset_path().parent.exists())
+        last_downloaded = dataset_last_downloaded()
+        suffix = f"  (last updated: {last_downloaded:%Y-%m-%d})" if last_downloaded else ""
+        self._dataset_status_label.setText(f"✓  Downloaded{suffix}")
+        self._dataset_status_label.setStyleSheet("color: #155724; font-weight: bold;")
+
+    def _on_dataset_download_error(self, msg: str) -> None:
+        from pipeline.name_dataset import is_dataset_ready
+
+        self._dataset_progress_bar.hide()
+        self._dataset_refresh_btn.setEnabled(True)
+        # The worker's last status signal left the label mid-download ("Extracting…").
+        # Reset it to the real state — a failed *refresh* leaves the old file intact,
+        # since the download only replaces it atomically once it succeeds.
+        if is_dataset_ready():
+            self._dataset_status_label.setText("✓  Downloaded")
+            self._dataset_status_label.setStyleSheet("color: #155724; font-weight: bold;")
+        else:
+            self._dataset_status_label.setText("✗  Not downloaded")
+            self._dataset_status_label.setStyleSheet("color: #721c24; font-weight: bold;")
+        QMessageBox.warning(self, "Naming Dataset", f"Could not download the naming dataset: {msg}")
 
     def _build_model_info(self) -> QGroupBox:
         from gui.model_manager import MODEL_URLS, _decimer_home
@@ -195,6 +313,20 @@ class SettingsDialog(QDialog):
 
     def _open_diagnostic_log_dir(self) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(self._diag_path_field.text()))
+
+    def done(self, result: int) -> None:
+        worker = getattr(self, "_dataset_download_worker", None)
+        if worker is not None and worker.isRunning():
+            # DatasetDownloadWorker has no interruption checks in its blocking
+            # requests/iter_content loop, so quit()+wait() would freeze the main
+            # thread for the rest of a multi-GB download. Refuse to close instead.
+            QMessageBox.information(
+                self,
+                "Download in Progress",
+                "Please wait for the naming dataset download to finish before closing Settings.",
+            )
+            return
+        super().done(result)
 
     def _save(self) -> None:
         self.config.openrouter_api_key = self._api_key_field.text().strip()

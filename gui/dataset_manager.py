@@ -1,0 +1,97 @@
+from __future__ import annotations
+import gzip
+import logging
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from pipeline import name_dataset
+
+log = logging.getLogger(__name__)
+
+DATASET_URL = "https://storage16f278.blob.core.windows.net/chem4all/naming_dataset.sqlite.gz"
+
+# Process-wide guard: the Settings dialog and the main-window banner each own their
+# own DatasetDownloadWorker, and both stream to the identical temp paths. Two
+# concurrent runs would interleave writes and produce a corrupt dataset file.
+_download_lock = threading.Lock()
+
+
+def _meta_path() -> Path:
+    target = name_dataset.dataset_path()
+    return target.with_suffix(target.suffix + ".meta")
+
+
+def dataset_last_downloaded() -> datetime | None:
+    meta = _meta_path()
+    if not meta.exists():
+        return None
+    try:
+        return datetime.fromisoformat(meta.read_text().splitlines()[0].strip())
+    except (ValueError, IndexError):
+        return None
+
+
+class DatasetDownloadWorker(QThread):
+    status = pyqtSignal(str)
+    progress = pyqtSignal(int, int)  # bytes_done, total_bytes
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def run(self) -> None:
+        if not _download_lock.acquire(blocking=False):
+            self.error.emit("A naming dataset download is already in progress.")
+            return
+        try:
+            try:
+                import requests
+            except ImportError:
+                self.error.emit("'requests' package not found — run: pip install requests")
+                return
+
+            target = name_dataset.dataset_path()
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+            self.status.emit("Downloading naming dataset…")
+            try:
+                self._download(requests, target)
+            except Exception as exc:
+                self.error.emit(f"Failed to download naming dataset: {exc}")
+                return
+
+            self.finished.emit()
+        finally:
+            _download_lock.release()
+
+    def _download(self, requests, target: Path) -> None:
+        gz_path = target.with_suffix(target.suffix + ".gz.part")
+        resp = requests.get(DATASET_URL, stream=True, allow_redirects=True)
+        resp.raise_for_status()
+        total = int(resp.headers.get("content-length", 0))
+
+        downloaded = 0
+        with open(gz_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    self.progress.emit(downloaded, total)
+
+        self.status.emit("Extracting naming dataset…")
+        tmp_sqlite = target.with_suffix(target.suffix + ".part")
+        gz_total = gz_path.stat().st_size
+        # Decompressed size isn't known up front, so progress is tracked against
+        # compressed bytes consumed instead (raw.tell()) — monotonically
+        # increasing and reaching gz_total at completion, which gives a real
+        # growing bar instead of an indeterminate spinner for what can be a
+        # multi-minute extraction of a multi-GB file.
+        with open(gz_path, "rb") as raw, gzip.GzipFile(fileobj=raw) as src, open(tmp_sqlite, "wb") as dst:
+            while chunk := src.read(1 << 20):
+                dst.write(chunk)
+                self.progress.emit(raw.tell(), gz_total)
+        gz_path.unlink(missing_ok=True)
+        tmp_sqlite.replace(target)  # atomic on the same filesystem
+
+        _meta_path().write_text(f"{datetime.now(timezone.utc).isoformat()}\n{DATASET_URL}\n")
