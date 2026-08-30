@@ -1,7 +1,6 @@
 from __future__ import annotations
 import gzip
 import logging
-import shutil
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,10 +80,17 @@ class DatasetDownloadWorker(QThread):
                     self.progress.emit(downloaded, total)
 
         self.status.emit("Extracting naming dataset…")
-        self.progress.emit(0, 0)  # switch to indeterminate during extraction
         tmp_sqlite = target.with_suffix(target.suffix + ".part")
-        with gzip.open(gz_path, "rb") as src, open(tmp_sqlite, "wb") as dst:
-            shutil.copyfileobj(src, dst)
+        gz_total = gz_path.stat().st_size
+        # Decompressed size isn't known up front, so progress is tracked against
+        # compressed bytes consumed instead (raw.tell()) — monotonically
+        # increasing and reaching gz_total at completion, which gives a real
+        # growing bar instead of an indeterminate spinner for what can be a
+        # multi-minute extraction of a multi-GB file.
+        with open(gz_path, "rb") as raw, gzip.GzipFile(fileobj=raw) as src, open(tmp_sqlite, "wb") as dst:
+            while chunk := src.read(1 << 20):
+                dst.write(chunk)
+                self.progress.emit(raw.tell(), gz_total)
         gz_path.unlink(missing_ok=True)
         tmp_sqlite.replace(target)  # atomic on the same filesystem
 
