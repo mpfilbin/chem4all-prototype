@@ -1,5 +1,7 @@
 # Feature Specification: SMILES-to-IUPAC Name Conversion
 
+> **Superseded.** The architecture described here has been fully replaced by the offline local naming dataset — see [`docs/superpowers/specs/2026-08-30-offline-naming-dataset-design.md`](superpowers/specs/2026-08-30-offline-naming-dataset-design.md). Kept for historical context only.
+
 **Product:** Chem4All
 **Status:** Draft for review
 **Author:** Mike Filbin

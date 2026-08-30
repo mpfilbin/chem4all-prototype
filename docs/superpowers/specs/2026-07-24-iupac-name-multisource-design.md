@@ -1,5 +1,7 @@
 # Design: Multi-Source IUPAC & Trivial Name Lookup (PubChem / CIR)
 
+> **Superseded.** The live PubChem/CIR lookup path described here has been fully retired in favour of the offline local naming dataset — see [`2026-08-30-offline-naming-dataset-design.md`](2026-08-30-offline-naming-dataset-design.md). Kept for historical context only.
+
 ## Context
 
 `docs/smiles-to-iupac.md` proposed replacing the current OpenRouter/GPT-4o naming path (`pipeline/namer.py`) with a single direct integration against PubChem's PUG REST API. Before committing to that design, we spiked the live PubChem service and found it in a genuine `503 PUGREST.ServerBusy` outage — reproducible across every endpoint tested (property lookup, synonyms, description, even the lightest possible fixed-CID fetch), while `pubchem.ncbi.nlm.nih.gov`'s main website loaded fine. This demonstrated, live, the exact risk the original spec's §10 accepted but didn't design around.
