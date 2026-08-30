@@ -2,6 +2,7 @@ from __future__ import annotations
 import gzip
 import logging
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,11 @@ from pipeline import name_dataset
 log = logging.getLogger(__name__)
 
 DATASET_URL = "https://<account>.blob.core.windows.net/chem4all/naming_dataset.sqlite.gz"
+
+# Process-wide guard: the Settings dialog and the main-window banner each own their
+# own DatasetDownloadWorker, and both stream to the identical temp paths. Two
+# concurrent runs would interleave writes and produce a corrupt dataset file.
+_download_lock = threading.Lock()
 
 
 def _meta_path() -> Path:
@@ -36,23 +42,29 @@ class DatasetDownloadWorker(QThread):
     error = pyqtSignal(str)
 
     def run(self) -> None:
-        try:
-            import requests
-        except ImportError:
-            self.error.emit("'requests' package not found — run: pip install requests")
+        if not _download_lock.acquire(blocking=False):
+            self.error.emit("A naming dataset download is already in progress.")
             return
-
-        target = name_dataset.dataset_path()
-        target.parent.mkdir(parents=True, exist_ok=True)
-
-        self.status.emit("Downloading naming dataset…")
         try:
-            self._download(requests, target)
-        except Exception as exc:
-            self.error.emit(f"Failed to download naming dataset: {exc}")
-            return
+            try:
+                import requests
+            except ImportError:
+                self.error.emit("'requests' package not found — run: pip install requests")
+                return
 
-        self.finished.emit()
+            target = name_dataset.dataset_path()
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+            self.status.emit("Downloading naming dataset…")
+            try:
+                self._download(requests, target)
+            except Exception as exc:
+                self.error.emit(f"Failed to download naming dataset: {exc}")
+                return
+
+            self.finished.emit()
+        finally:
+            _download_lock.release()
 
     def _download(self, requests, target: Path) -> None:
         gz_path = target.with_suffix(target.suffix + ".gz.part")

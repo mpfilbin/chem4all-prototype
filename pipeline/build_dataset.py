@@ -21,9 +21,13 @@ _SYNONYM_URL = f"{_BASE_URL}/CID-Synonym-filtered.gz"
 
 def _download(url: str, dest: Path) -> None:
     log.info("Downloading %s -> %s", url, dest)
-    with urlopen(url) as resp, open(dest, "wb") as f:
+    # Stage into a .part file so an interrupted download can't leave a truncated
+    # file that main()'s `if not dest.exists()` check mistakes for a complete one.
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    with urlopen(url) as resp, open(tmp, "wb") as f:
         while chunk := resp.read(1 << 20):
             f.write(chunk)
+    tmp.replace(dest)
 
 
 def _iter_tsv(path: Path):

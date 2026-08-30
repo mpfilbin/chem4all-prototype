@@ -147,12 +147,12 @@ class SettingsDialog(QDialog):
         path_edit = QLineEdit(str(dataset_path().parent))
         path_edit.setReadOnly(True)
         path_row.addWidget(path_edit)
-        show_btn = QPushButton("Show in Finder")
-        show_btn.setEnabled(dataset_path().parent.exists())
-        show_btn.clicked.connect(
+        self._dataset_show_btn = QPushButton("Show in Finder")
+        self._dataset_show_btn.setEnabled(dataset_path().parent.exists())
+        self._dataset_show_btn.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(dataset_path().parent)))
         )
-        path_row.addWidget(show_btn)
+        path_row.addWidget(self._dataset_show_btn)
         vbox.addLayout(path_row)
 
         self._dataset_refresh_btn = QPushButton("Refresh Dataset" if ready else "Download Dataset")
@@ -206,14 +206,26 @@ class SettingsDialog(QDialog):
         self._dataset_progress_bar.hide()
         self._dataset_refresh_btn.setEnabled(True)
         self._dataset_refresh_btn.setText("Refresh Dataset")
+        self._dataset_show_btn.setEnabled(dataset_path().parent.exists())
         last_downloaded = dataset_last_downloaded()
         suffix = f"  (last updated: {last_downloaded:%Y-%m-%d})" if last_downloaded else ""
         self._dataset_status_label.setText(f"✓  Downloaded{suffix}")
         self._dataset_status_label.setStyleSheet("color: #155724; font-weight: bold;")
 
     def _on_dataset_download_error(self, msg: str) -> None:
+        from pipeline.name_dataset import is_dataset_ready
+
         self._dataset_progress_bar.hide()
         self._dataset_refresh_btn.setEnabled(True)
+        # The worker's last status signal left the label mid-download ("Extracting…").
+        # Reset it to the real state — a failed *refresh* leaves the old file intact,
+        # since the download only replaces it atomically once it succeeds.
+        if is_dataset_ready():
+            self._dataset_status_label.setText("✓  Downloaded")
+            self._dataset_status_label.setStyleSheet("color: #155724; font-weight: bold;")
+        else:
+            self._dataset_status_label.setText("✗  Not downloaded")
+            self._dataset_status_label.setStyleSheet("color: #721c24; font-weight: bold;")
         QMessageBox.warning(self, "Naming Dataset", f"Could not download the naming dataset: {msg}")
 
     def _build_model_info(self) -> QGroupBox:
@@ -305,8 +317,15 @@ class SettingsDialog(QDialog):
     def done(self, result: int) -> None:
         worker = getattr(self, "_dataset_download_worker", None)
         if worker is not None and worker.isRunning():
-            worker.quit()
-            worker.wait()
+            # DatasetDownloadWorker has no interruption checks in its blocking
+            # requests/iter_content loop, so quit()+wait() would freeze the main
+            # thread for the rest of a multi-GB download. Refuse to close instead.
+            QMessageBox.information(
+                self,
+                "Download in Progress",
+                "Please wait for the naming dataset download to finish before closing Settings.",
+            )
+            return
         super().done(result)
 
     def _save(self) -> None:

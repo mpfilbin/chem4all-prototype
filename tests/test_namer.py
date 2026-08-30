@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 from pipeline.namer import lookup_iupac, lookup_trivial_name, NameLookupError, _inchikey_for
 
@@ -43,6 +45,19 @@ def test_lookup_iupac_raises_when_dataset_not_downloaded(monkeypatch):
         lookup_iupac(ETHANOL_SMILES)
 
 
+def test_lookup_iupac_wraps_sqlite_error(monkeypatch):
+    # A corrupt/unreadable dataset file must surface as NameLookupError — a bare
+    # sqlite3.Error escapes RecognizerWorker's except clause and kills the batch.
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+
+    def _raise(inchikey):
+        raise sqlite3.DatabaseError("file is not a database")
+
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", _raise)
+    with pytest.raises(NameLookupError):
+        lookup_iupac(ETHANOL_SMILES)
+
+
 def test_lookup_iupac_raises_on_unparseable_smiles(monkeypatch):
     monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
     with pytest.raises(NameLookupError):
@@ -65,6 +80,17 @@ def test_lookup_trivial_name_returns_none_on_confirmed_miss(monkeypatch):
 
 def test_lookup_trivial_name_raises_when_dataset_not_downloaded(monkeypatch):
     monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: False)
+    with pytest.raises(NameLookupError):
+        lookup_trivial_name(ETHANOL_SMILES)
+
+
+def test_lookup_trivial_name_wraps_sqlite_error(monkeypatch):
+    monkeypatch.setattr("pipeline.namer.name_dataset.is_dataset_ready", lambda: True)
+
+    def _raise(inchikey):
+        raise sqlite3.DatabaseError("file is not a database")
+
+    monkeypatch.setattr("pipeline.namer.name_dataset.lookup", _raise)
     with pytest.raises(NameLookupError):
         lookup_trivial_name(ETHANOL_SMILES)
 
