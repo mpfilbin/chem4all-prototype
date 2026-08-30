@@ -19,14 +19,34 @@ _IUPAC_URL = f"{_BASE_URL}/CID-IUPAC.gz"
 _SYNONYM_URL = f"{_BASE_URL}/CID-Synonym-filtered.gz"
 
 
+_PROGRESS_STEP_BYTES = 50 * (1 << 20)  # log every 50 MB, not every 1 MB chunk
+
+
+def _log_progress(name: str, downloaded: int, total: int) -> None:
+    done_mb = downloaded / (1 << 20)
+    if total:
+        log.info("  %s: %.0f MB / %.0f MB (%.1f%%)", name, done_mb, total / (1 << 20), downloaded * 100 / total)
+    else:
+        log.info("  %s: %.0f MB downloaded", name, done_mb)
+
+
 def _download(url: str, dest: Path) -> None:
     log.info("Downloading %s -> %s", url, dest)
     # Stage into a .part file so an interrupted download can't leave a truncated
     # file that main()'s `if not dest.exists()` check mistakes for a complete one.
     tmp = dest.with_suffix(dest.suffix + ".part")
-    with urlopen(url) as resp, open(tmp, "wb") as f:
-        while chunk := resp.read(1 << 20):
-            f.write(chunk)
+    with urlopen(url) as resp:
+        total = int(resp.headers.get("Content-Length", 0))
+        downloaded = 0
+        next_log_at = _PROGRESS_STEP_BYTES
+        with open(tmp, "wb") as f:
+            while chunk := resp.read(1 << 20):
+                f.write(chunk)
+                downloaded += len(chunk)
+                if downloaded >= next_log_at:
+                    _log_progress(dest.name, downloaded, total)
+                    next_log_at += _PROGRESS_STEP_BYTES
+        _log_progress(dest.name, downloaded, total)  # final tally, even if under the step size
     tmp.replace(dest)
 
 
